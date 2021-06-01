@@ -20,6 +20,7 @@ struct urpc_uri_t
     char path[1024];
     char paramname[1024];
     char paramvalue[1024];
+    int port;
 };
 
 int

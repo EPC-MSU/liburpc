@@ -106,16 +106,16 @@ bool Supermap::addDevice(conn_id_t conn_id, uint32_t serial) {
     std::lock_guard<tthread::mutex> map_lock(map_mutex);
 
     if (devices_by_connection[conn_id].count(serial) > 0) {  // Check if device already opened
-        ZF_LOGD("Device with serial %u already opened (for %u).", serial, conn_id);
+        ZF_LOGD("Device with serial %lX already opened (for %u).", serial, conn_id);
         device_opened = true;
     } else if (devices_by_serial.count(serial) > 0) {           // Use previously opened by other user shared device
-        ZF_LOGD("Use previously opened device with serial %u (for %u).", serial, conn_id);
+        ZF_LOGD("Use previously opened device with serial %lX (for %u).", serial, conn_id);
         auto &p = devices_by_serial.at(serial);
         ++p.second;
         devices_by_connection.at(conn_id)[serial] = p.first;
         device_opened = true;
     } else {                                           // Open new device
-        ZF_LOGD("Open new device with serial %u for %u...", serial, conn_id);
+        ZF_LOGD("Open new device with serial %lX for %u...", serial, conn_id);
 
         try {
             Device *d = Device::create(conn_id, serial);

@@ -64,7 +64,7 @@ int urpc_uri_parse(
     struct urpc_uri_t *result
 )
 {
-    const char *p, *pn;
+    const char *p, *pn, *pm;
 
     p = uri + strspn(uri, " \t");
     if (!p)
@@ -126,12 +126,32 @@ int urpc_uri_parse(
         else // pn == NULL
         {
             // no path (scheme://host)
+
             if (strlen(p) + 1 > sizeof(result->host))
             {
                 return 1;
             }
-            strcpy(result->host, p);
-            result->host[strlen(p)] = 0;
+
+            pm = strchr(p, ':');
+            if (pm)
+            {
+                // scheme://host:port
+                memcpy(result->host, p, pm - p);
+                result->host[pm - p] = 0;
+
+                long int port = strtol(pm + 1, NULL, 10);
+                if (!port)
+                {
+                    return 1;
+                }
+                result->port = (int)port;
+            }
+            else
+            {
+                // scheme://host
+                strcpy(result->host, p);
+                result->host[strlen(p)] = 0;
+            }
         }
     }
     else

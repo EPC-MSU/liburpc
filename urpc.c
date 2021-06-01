@@ -15,6 +15,9 @@
 #ifdef URPC_ENABLE_XINET
     #include "devxinet/devxinet.h"
 #endif
+#ifdef URPC_ENABLE_UDP
+    #include "devudp/devudp.h"
+#endif
 #ifdef URPC_ENABLE_VIRTUAL
     #include "devvirtual.h"
 #endif
@@ -24,7 +27,7 @@
 #endif
 
 
-#if !defined(URPC_ENABLE_SERIAL) && !defined(URPC_ENABLE_XINET) && !defined(URPC_ENABLE_VIRTUAL)
+#if !defined(URPC_ENABLE_SERIAL) && !defined(URPC_ENABLE_XINET) && !defined(URPC_ENABLE_VIRTUAL) && !defined(URPC_ENABLE_UDP)
     #error "Define at least one of URPC_ENABLE_SERIAL, URPC_ENABLE_XINET, URPC_ENABLE_VIRTUAL."
 #endif // !defined(URPC_ENABLE_SERIAL) && !defined(URPC_ENABLE_XINET) && !defined(URPC_ENABLE_VIRTUAL)
 
@@ -39,6 +42,9 @@ enum urpc_device_type_t
     #endif
     #ifdef URPC_ENABLE_VIRTUAL
     URPC_URPC_DEVICE_TYPE_VIRTUAL,
+    #endif
+    #ifdef URPC_ENABLE_UDP
+    URPC_DEVICE_TYPE_UDP,
     #endif
     URPC_DEVICE_TYPE_UNKNOWN
 };
@@ -55,6 +61,9 @@ struct urpc_device_t
         #endif
         #ifdef URPC_ENABLE_XINET
         struct urpc_device_xinet_t *xinet;
+        #endif
+        #ifdef URPC_ENABLE_UDP
+        struct urpc_device_udp_t *udp;
         #endif
         #ifdef URPC_ENABLE_VIRTUAL
         struct virtual_device_t virtual;
@@ -75,6 +84,12 @@ static enum urpc_device_type_t get_device_type_from_uri(const struct urpc_uri_t 
     if (!portable_strcasecmp(parsed_uri->scheme, "xi-net"))
     {
         return URPC_DEVICE_TYPE_XINET;
+    }
+    #endif
+    #ifdef URPC_ENABLE_UDP
+    if (!portable_strcasecmp(parsed_uri->scheme, "udp"))
+    {
+        return URPC_DEVICE_TYPE_UDP;
     }
     #endif
     #ifdef URPC_ENABLE_VIRTUAL
@@ -140,6 +155,15 @@ urpc_device_create(
             }
             break;
             #endif
+            #ifdef URPC_ENABLE_UDP
+        case URPC_DEVICE_TYPE_UDP:
+            if ((device->impl.udp = urpc_device_udp_create(parsed_uri.host, parsed_uri.port)) == NULL)
+            {
+                ZF_LOGE("failed to create udp device");
+                goto device_impl_create_failed;
+            }
+            break;
+            #endif
             #if URPC_ENABLE_VIRTUAL
         case URPC_DEVICE_TYPE_VIRTUAL:
             return close_port_virtual(&device->impl.virtual);
@@ -198,7 +222,12 @@ urpc_result_t urpc_device_send_request(
             result = urpc_device_xinet_send_request(device->impl.xinet, cid, request, request_len, response, response_len);
             break;
             #endif
-            #if URPC_ENABLE_VIRTUAL
+            #ifdef URPC_ENABLE_UDP
+        case URPC_DEVICE_TYPE_UDP:
+            result = urpc_device_udp_send_request(device->impl.udp, cid, request, request_len, response, response_len);
+            break;
+            #endif
+            #ifdef URPC_ENABLE_VIRTUAL
         case URPC_DEVICE_TYPE_VIRTUAL:
             result = close_port_virtual(&device->impl.virtual);
             break;
@@ -246,6 +275,11 @@ urpc_result_t urpc_device_destroy(
             #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
             result = urpc_device_xinet_destroy(&device->impl.xinet);
+            break;
+            #endif
+            #ifdef URPC_ENABLE_UDP
+        case URPC_DEVICE_TYPE_UDP:
+            result = urpc_device_udp_destroy(&device->impl.udp);
             break;
             #endif
             #if URPC_ENABLE_VIRTUAL

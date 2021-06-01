@@ -78,6 +78,11 @@ public:
         while(!this->message_really_arrived)
         {
             this->connection_activity.wait_for(lock, std::chrono::minutes(1));
+
+            if(this->connection_lost)
+            {
+                break;
+            }
         }
         this->message_really_arrived = false;
 
@@ -156,6 +161,14 @@ private:
             conn->last_message = data;
             conn->message_really_arrived = true;
             conn->connection_activity.notify_all();
+            /*
+             * We have to manually release the mutexes here, because in some cases,
+             * after going out of scope, the conn_data destructor is triggered,
+             * which also requires these mutexes
+             * See #48383 for description
+             */
+            conn_lock.unlock();
+            self_lock.unlock();
         }
         catch(const std::exception &)
         {
@@ -262,15 +275,15 @@ public:
         write_uint32(&request_buffer.at(4), URPC_OPEN_DEVICE_REQUEST_PACKET_TYPE);
         write_uint32(&request_buffer.at(12), serial);
 
-        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "requesting server to open device with serial %" PRIu32 "... ", serial);
+        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "requesting server to open device with serial %" PRIX32 "... ", serial);
         std::vector<uint8_t> response = conn->send_request_and_wait_response(request_buffer);
         bool opened = response.at(27) != 0;
         if(!opened)
         {
-            ZF_LOGE("server failed to open device with serial %" PRIu32 "!", serial);
+            ZF_LOGE("server failed to open device with serial %" PRIX32 "!", serial);
             throw DeviceLost("");
         }
-        ZF_LOGD_MEM(response.data(), response.size(), "server has successfully opened device with serial %" PRIu32 "!", serial);
+        ZF_LOGD_MEM(response.data(), response.size(), "server has successfully opened device with serial %" PRIX32 "!", serial);
 
         this->conn = conn;
         this->serial = serial;
@@ -295,14 +308,14 @@ public:
         // Pack request data
         std::copy(request, request+request_len, request_buffer.begin()+sizeof(urpc_xinet_common_header_t)+4+URPC_CID_SIZE);
 
-        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "executing request to device with serial %" PRIu32 "... ", serial);
+        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "executing request to device with serial %" PRIX32 "... ", serial);
         std::vector<uint8_t> response_buffer = this->conn->send_request_and_wait_response(request_buffer);
 
         uint32_t response_packet_type;
         read_uint32(&response_packet_type, &response_buffer[4]);
         if(response_packet_type != URPC_COMMAND_RESPONSE_PACKET_TYPE)
         {
-            ZF_LOGE("failed to execute request to device with serial %" PRIu32 "... ", serial);
+            ZF_LOGE("failed to execute request to device with serial %" PRIX32 "... ", serial);
             throw std::runtime_error("");
         }
         urpc_result_t status;
@@ -310,7 +323,7 @@ public:
         std::memcpy(response, response_buffer.data()+sizeof(urpc_xinet_common_header_t)+sizeof(uint32_t), response_len);
         if(status != urpc_result_ok)
         {
-            ZF_LOGE("failed to execute request to device with serial %" PRIu32 "... ", serial);
+            ZF_LOGE("failed to execute request to device with serial %" PRIX32 "... ", serial);
             if(status == urpc_result_nodevice)
             {
                 throw DeviceLost("");
@@ -320,7 +333,7 @@ public:
                 throw std::runtime_error("");
             }
         }
-        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "request to device with serial %" PRIu32 " has been successfully executed!", serial);
+        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "request to device with serial %" PRIX32 " has been successfully executed!", serial);
     }
 
     ~urpc_device_xinet_t()
