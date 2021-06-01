@@ -1,2 +1,1 @@
-# liburpc
-URPC library for uRPC project
+Библиотека liburpc является протоколонезависимой частью проекта uRPC https://github.com/epc-msu/uRPC
