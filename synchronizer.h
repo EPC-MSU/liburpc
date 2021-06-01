@@ -10,17 +10,17 @@ urpc_syncronizer_create(
 
 int
 urpc_synchronizer_acquire(
-        struct urpc_synchronizer_t *s
+    struct urpc_synchronizer_t *s
 );
 
 int
 urpc_synchronizer_release(
-        struct urpc_synchronizer_t *s
+    struct urpc_synchronizer_t *s
 );
 
 int
 urpc_synchronizer_destroy(
-        struct urpc_synchronizer_t *s
+    struct urpc_synchronizer_t *s
 );
 
 #endif //URPC_SYNCHRONIZER_H

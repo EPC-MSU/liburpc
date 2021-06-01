@@ -53,7 +53,7 @@ Device * Device::create(conn_id_t conn_id, uint32_t serial) {
 
     Device *device = new(std::nothrow) Device(conn_id, serial, handle);
     if (device == nullptr) {
-        if (urpc_device_destroy(handle) != urpc_result_ok) {
+        if (urpc_device_destroy(&handle) != urpc_result_ok) {
             ZF_LOGE("Can not destroy opened device %s for %u.", addr.c_str(), conn_id);
         }
     }
@@ -63,7 +63,7 @@ Device * Device::create(conn_id_t conn_id, uint32_t serial) {
 
 Device::~Device() {
     // close the device
-    urpc_device_destroy(this->handle);
+    urpc_device_destroy(&this->handle);
 }
 
 Device::Device(conn_id_t conn_id, uint32_t serial, urpc_device_handle_t handle):

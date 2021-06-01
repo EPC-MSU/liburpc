@@ -3,9 +3,9 @@
 #include <initguid.h>
 // do not force to use DDK with MSVC or other
 #ifdef _MSC_VER
-#include <winioctl.h>
+    #include <winioctl.h>
 #else
-#include <ddk/ntddser.h>
+    #include <ddk/ntddser.h>
 #endif
 #include <setupapi.h>
 #include <process.h>
@@ -17,10 +17,9 @@
  * Serial port support
  */
 
-urpc_result_t
-urpc_serial_port_open(
-        const char *path,
-        urpc_handle_t *handle
+urpc_result_t urpc_serial_port_open(
+    const char *path,
+    urpc_handle_t *handle
 )
 {
     HANDLE opened_handle;
@@ -28,15 +27,15 @@ urpc_serial_port_open(
     COMMTIMEOUTS ctm;
 
     opened_handle = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, 0);
-    if(opened_handle == INVALID_HANDLE_VALUE)
+    if (opened_handle == INVALID_HANDLE_VALUE)
     {
         ZF_LOGE("unable to open port %s: ", path);
         return urpc_result_error;
     }
 
-    if(!GetCommState(opened_handle, &dcb))
+    if (!GetCommState(opened_handle, &dcb))
     {
-        if(!CloseHandle(opened_handle))
+        if (!CloseHandle(opened_handle))
         {
             ZF_LOGE("error closing port: ");
         }
@@ -60,9 +59,9 @@ urpc_serial_port_open(
     dcb.ByteSize = 8;
     dcb.StopBits = 2;
 
-    if(!SetCommState(opened_handle, &dcb))
+    if (!SetCommState(opened_handle, &dcb))
     {
-        if(!CloseHandle( opened_handle ))
+        if (!CloseHandle( opened_handle ))
         {
             ZF_LOGE("error closing port: ");
         }
@@ -76,9 +75,9 @@ urpc_serial_port_open(
     ctm.WriteTotalTimeoutConstant = 0;
     ctm.WriteTotalTimeoutMultiplier = URPC_PORT_TIMEOUT;
 
-    if(!SetCommTimeouts(opened_handle, &ctm))
+    if (!SetCommTimeouts(opened_handle, &ctm))
     {
-        if(!CloseHandle(opened_handle))
+        if (!CloseHandle(opened_handle))
         {
             ZF_LOGE("error closing port: ");
         }
@@ -91,12 +90,11 @@ urpc_serial_port_open(
     return urpc_result_ok;
 }
 
-urpc_result_t
-urpc_serial_port_close(
-        urpc_handle_t handle
+urpc_result_t urpc_serial_port_close(
+    urpc_handle_t handle
 )
 {
-    if(CloseHandle(handle) == -1)
+    if (CloseHandle(handle) == -1)
     {
         ZF_LOGE("error closing port: ");
         return urpc_result_error;
@@ -104,12 +102,11 @@ urpc_serial_port_close(
     return urpc_result_ok;
 }
 
-urpc_result_t
-urpc_serial_port_flush(
-        urpc_handle_t handle
+urpc_result_t urpc_serial_port_flush(
+    urpc_handle_t handle
 )
 {
-    if(!PurgeComm(handle, PURGE_RXCLEAR|PURGE_TXCLEAR))
+    if (!PurgeComm(handle, PURGE_RXCLEAR | PURGE_TXCLEAR))
     {
         ZF_LOGE("serial port flush failed: ");
         return urpc_result_error;
@@ -117,15 +114,15 @@ urpc_serial_port_flush(
     return urpc_result_ok;
 }
 
-urpc_result_t
-urpc_read_serial_port(
-        urpc_handle_t handle,
-        void *buf,
-        size_t *amount
-) {
+urpc_result_t urpc_read_serial_port(
+    urpc_handle_t handle,
+    void *buf,
+    size_t *amount
+)
+{
     DWORD want_to_read = *amount;
     DWORD actually_read;
-    if(TRUE != ReadFile(handle, buf, (DWORD)want_to_read, &actually_read, NULL))
+    if (TRUE != ReadFile(handle, buf, (DWORD)want_to_read, &actually_read, NULL))
     {
         ZF_LOGE("serial port read failed: ");
         return urpc_result_error;
@@ -134,18 +131,17 @@ urpc_read_serial_port(
     return urpc_result_ok;
 }
 
-urpc_result_t
-urpc_serial_port_write(
-        urpc_handle_t handle,
-        const void *buf,
-        size_t *amount
+urpc_result_t urpc_serial_port_write(
+    urpc_handle_t handle,
+    const void *buf,
+    size_t *amount
 )
 {
     DWORD want_to_write = *amount;
     DWORD actually_written;
-    if(TRUE != WriteFile(handle, buf, (DWORD)want_to_write, &actually_written, NULL))
+    if (TRUE != WriteFile(handle, buf, (DWORD)want_to_write, &actually_written, NULL))
     {
-        ZF_LOGE("serial port write failed: %s");
+        ZF_LOGE("serial port write failed: ");
         return urpc_result_error;
     }
     *amount = actually_written;
@@ -157,23 +153,21 @@ urpc_serial_port_write(
  * Misc
  */
 
-void
-urpc_msec_sleep(
-        unsigned int msec
+void urpc_msec_sleep(
+    unsigned int msec
 )
 {
     Sleep(msec);
 }
 
-void
-urpc_get_wallclock_us(
-        uint64_t *us
+void urpc_get_wallclock_us(
+    uint64_t *us
 )
 {
     const time_t DELTA_EPOCH_IN_MICROSECS = (time_t)11644473600000000;
     FILETIME ft;
     time_t tmpres = 0;
-    if(us != NULL)
+    if (us != NULL)
     {
         memset(&ft, 0, sizeof(ft));
 
@@ -190,10 +184,9 @@ urpc_get_wallclock_us(
     }
 }
 
-void
-urpc_get_wallclock(
-        time_t *sec,
-        int *msec
+void urpc_get_wallclock(
+    time_t *sec,
+    int *msec
 )
 {
     uint64_t us;

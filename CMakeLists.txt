@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 PROJECT(urpc C)
 
@@ -10,14 +10,37 @@ IF(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
     CMAKE_POLICY(SET CMP0042 NEW)
 ENDIF()
 
+if(${CMAKE_VERSION} VERSION_LESS "3.0.2")
+    function(target_include_directories _target)
+        set_property(GLOBAL APPEND PROPERTY GLOBAL_TARGETS "${_target}")
+        set(_mode "PRIVATE")
+        foreach(_arg ${ARGN})
+            if (_arg MATCHES "SYSTEM|BEFORE")
+                message(FATAL_ERROR "target_include_directories: SYSTEM or BEFORE not supported")
+            endif()
+            if (_arg MATCHES "INTERFACE|PUBLIC|PRIVATE")
+                set(_mode "${_arg}")
+            else()
+                get_filename_component(_inc_dir "${_arg}" ABSOLUTE)
+                if (_mode MATCHES "PUBLIC|PRIVATE")
+                    set_property(TARGET ${_target} APPEND PROPERTY INCLUDE_DIRECTORIES "${_inc_dir}")
+                endif()
+                if (_mode MATCHES "INTERFACE|PUBLIC")
+                    set_property(TARGET ${_target} APPEND PROPERTY MY_INTERFACE_INCLUDE_DIRECTORIES "${_inc_dir}")
+                endif()
+            endif()
+        endforeach()
+    endfunction(target_include_directories)
+endif()
+
 ADD_LIBRARY(urpc urpc.c uri.c synchronizer.c)
 CONFIGURE_FILE(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/generated/private/config.h)
-TARGET_INCLUDE_DIRECTORIES(urpc PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated/private)
+target_include_directories(urpc PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated/private)
 
 INCLUDE(GenerateExportHeader)
 GENERATE_EXPORT_HEADER(urpc EXPORT_MACRO_NAME URPC_API_EXPORT EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/generated/public/urpc_export.h)
 # make available to all dependants
-TARGET_INCLUDE_DIRECTORIES(urpc PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated/public)
+target_include_directories(urpc PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated/public)
 # make available to all dev* submodules
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/generated/public)
 
@@ -39,7 +62,7 @@ ENDFUNCTION()
 ADD_SUBDIRECTORY_ZF_LOG()
 # Make zf_log.h available for all submodules
 INCLUDE_DIRECTORIES(vendor/zf_log/zf_log)
-TARGET_LINK_LIBRARIES(urpc PUBLIC zf_log)
+TARGET_LINK_LIBRARIES(urpc zf_log)
 
 FUNCTION(ADD_SUBDIRECTORY_TINYCTHREAD)
     SET(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
@@ -48,15 +71,17 @@ FUNCTION(ADD_SUBDIRECTORY_TINYCTHREAD)
     ADD_SUBDIRECTORY(vendor/tinycthread)
 ENDFUNCTION()
 ADD_SUBDIRECTORY_TINYCTHREAD()
-TARGET_INCLUDE_DIRECTORIES(urpc PRIVATE vendor/tinycthread/source)
-TARGET_LINK_LIBRARIES(urpc PRIVATE tinycthread)
+target_include_directories(urpc PRIVATE vendor/tinycthread/source)
+TARGET_LINK_LIBRARIES(urpc tinycthread)
 
 IF(URPC_ENABLE_SERIAL)
     ADD_SUBDIRECTORY(devserial)
-    TARGET_LINK_LIBRARIES(urpc PRIVATE urpc-serial)
+    TARGET_LINK_LIBRARIES(urpc urpc-serial)
 ENDIF()
 
 IF(URPC_ENABLE_XINET)
     ADD_SUBDIRECTORY(devxinet)
-    TARGET_LINK_LIBRARIES(urpc PRIVATE urpc-xinet)
+    TARGET_LINK_LIBRARIES(urpc urpc-xinet)
 ENDIF()
+
+

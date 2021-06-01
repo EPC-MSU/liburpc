@@ -12,23 +12,23 @@ struct urpc_device_xinet_t;
 
 struct urpc_device_xinet_t *
 urpc_device_xinet_create(
-        const char *host,
-        const char *path
+    const char *host,
+    const char *path
 );
 
 urpc_result_t
 urpc_device_xinet_send_request(
-        struct urpc_device_xinet_t *device,
-        const char request_cid[URPC_CID_SIZE],
-        const uint8_t *request,
-        uint8_t request_len,
-        uint8_t *response,
-        uint8_t response_len
+    struct urpc_device_xinet_t *device,
+    const char request_cid[URPC_CID_SIZE],
+    const uint8_t *request,
+    uint8_t request_len,
+    uint8_t *response,
+    uint8_t response_len
 );
 
 urpc_result_t
 urpc_device_xinet_destroy(
-        struct urpc_device_xinet_t *device
+    struct urpc_device_xinet_t **device_ptr
 );
 
 #ifdef __cplusplus

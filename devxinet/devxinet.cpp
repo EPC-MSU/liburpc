@@ -8,11 +8,12 @@
 #include <chrono>
 #include <mutex>
 #include <condition_variable>
-#include <cstdint>
 
 #include <zf_log.h>
 
 #include "common.hpp"
+
+#include <limits>
 
 
 #ifdef _MSC_VER
@@ -32,14 +33,14 @@
 class DeviceLost : public std::runtime_error
 {
 public:
-    explicit DeviceLost(const char *message) : std::runtime_error(message) {};
+    DeviceLost(const char *message) : std::runtime_error(message) {};
 };
 
 
 class ConnectionLost : public std::runtime_error
 {
 public:
-    explicit ConnectionLost(const char *message) : std::runtime_error(message) {};
+    ConnectionLost(const char *message) : std::runtime_error(message) {};
 };
 
 
@@ -74,32 +75,9 @@ public:
         ZF_LOGD("request has been successfully sent to %d!", this->conn_id);
 
         ZF_LOGD("waiting for response from %d...", this->conn_id);
-        const auto time_start = std::chrono::steady_clock::now();
-        const std::chrono::milliseconds max_total_delay(5000);
-        const std::chrono::seconds delay(1);
-
         while(!this->message_really_arrived)
         {
-            const auto total_delay =
-                    std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now() - time_start
-                    );
-            if(total_delay.count() >= max_total_delay.count())
-            {
-                ZF_LOGD(
-                        "Total delay: %" PRIiMAX " ms of %" PRIiMAX " ms => Connection lost...",
-                        static_cast<std::intmax_t>(total_delay.count()),
-                        static_cast<std::intmax_t>(max_total_delay.count())
-                );
-                throw ConnectionLost("");
-            }
-
-            ZF_LOGD(
-                    "Total delay: %" PRIiMAX " ms of %" PRIiMAX " ms...",
-                    static_cast<std::intmax_t>(total_delay.count()),
-                    static_cast<std::intmax_t>(max_total_delay.count())
-            );
-            this->connection_activity.wait_for(lock, delay);
+            this->connection_activity.wait_for(lock, std::chrono::minutes(1));
         }
         this->message_really_arrived = false;
 
@@ -153,10 +131,7 @@ private:
     {
         ZF_LOGD("data received from %d:", conn_id);
 
-        if(conn_id == conn_id_invalid)
-        {
-            return;
-        }
+        assert(conn_id != conn_id_invalid);
 
         if(data.size() < 4)
         {
@@ -172,63 +147,45 @@ private:
             return;
         }
 
-        // TODO: Refactor! Note: conn should be destroyed after self_lock!
-        // Why? Some destructor and other calls, maybe, terminates thread, so self.mutex will never be unlocked.
-        std::shared_ptr<ConnectionDuctTape> conn;
-
-        try {
-            BindyWrapperSingleton &self = BindyWrapperSingleton::instance();
-            std::lock_guard<std::mutex> self_lock(self.mutex);
-
-            // Important: See explanation above!!!
-            conn = self.conn_data_by_conn_id.at(conn_id).lock();
-            if(conn != nullptr)
-            {
-                std::lock_guard<std::mutex> conn_lock(conn->mutex);
-
-                conn->last_message = data;
-                conn->message_really_arrived = true;
-                conn->connection_activity.notify_all();
-            }
+        BindyWrapperSingleton &self = BindyWrapperSingleton::instance();
+        std::unique_lock<std::mutex> self_lock(self.mutex);
+        try
+        {
+            auto conn = self.conn_data_by_conn_id.at(conn_id).lock();
+            std::unique_lock<std::mutex> conn_lock(conn->mutex);
+            conn->last_message = data;
+            conn->message_really_arrived = true;
+            conn->connection_activity.notify_all();
         }
         catch(const std::exception &)
         {
             return;
         }
+
     }
 
     static void on_bindy_disconnect(conn_id_t conn_id)
     {
         ZF_LOGD("disconnect event received for %d:", conn_id);
 
-        if(conn_id == conn_id_invalid)
+        assert(conn_id != conn_id_invalid);
+        BindyWrapperSingleton &self = BindyWrapperSingleton::instance();
+        std::unique_lock<std::mutex> self_lock(self.mutex);
+        try
         {
-            return;
-        }
-
-        // Note: See explanation in on_bindy_data_received() above! (Seems like all is ok here, but...)
-        std::shared_ptr<ConnectionDuctTape> conn;
-
-        {
-            BindyWrapperSingleton &self = BindyWrapperSingleton::instance();
-            std::lock_guard<std::mutex> self_lock(self.mutex);
-            try
+            if(!self.conn_data_by_conn_id.at(conn_id).expired())
             {
                 ZF_LOGD("cleaning up connection for %d", conn_id);
-                conn = self.conn_data_by_conn_id.at(conn_id).lock();
-                if (conn != nullptr)
-                {
-                    std::lock_guard<std::mutex> conn_lock(conn->mutex);
-
-                    conn->connection_lost = true;
-                    conn->connection_activity.notify_all();
-                }
-                self.conn_data_by_conn_id.erase(conn_id);
+                auto conn = self.conn_data_by_conn_id.at(conn_id).lock();
+                std::lock_guard<std::mutex> conn_lock(conn->mutex);
+                conn->connection_lost = true;
+                conn->connection_activity.notify_all();
             }
-            catch (const std::out_of_range &)
-            {
-                return;
-            }
+            self.conn_data_by_conn_id.erase(conn_id);
+        }
+        catch(const std::out_of_range &)
+        {
+            return;
         }
     }
 
@@ -244,28 +201,20 @@ private:
         this->bindy->add_user_local(XINET_BINDY_USER, key, uid);
 
         this->bindy->set_master_local(uid);
-        this->bindy->set_handler(&BindyWrapperSingleton::on_bindy_data_received);
-        this->bindy->set_discnotify(&BindyWrapperSingleton::on_bindy_disconnect);
+        this->bindy->set_handler(&this->on_bindy_data_received);
+        this->bindy->set_discnotify(&this->on_bindy_disconnect);
     }
 
     ~BindyWrapperSingleton() {
-        try
-        {
-            bindy::Bindy::shutdown_network();
-        }
-        catch(const std::exception &e)
-        {
-            ZF_LOGE("failed to shut down network: %s... ", e.what());
-        }
+        bindy::Bindy::shutdown_network();
     }
 
-    // local static variables initialization in C++11 is thread safe
+    // local static variables initialization in C++11 is threasafe
     // however msvc 2012 doesn't support 'magic statics' so we need explicit static mutex =/
     static std::mutex init_mutex;
 public:
     static BindyWrapperSingleton &instance() {
         std::lock_guard<std::mutex> lock(init_mutex);
-
         static BindyWrapperSingleton *instance;
         if(instance == nullptr)
         {
@@ -287,15 +236,9 @@ public:
         {
             throw std::runtime_error("");
         }
-
-        // TODO: Refactor, see on_bindy_data_received. Note: Seems like this produces thread cancel and dead lock.
-        auto conn = std::shared_ptr<ConnectionDuctTape>(
-                new ConnectionDuctTape(this->bindy, conn_id),
-                [this, conn_id](ConnectionDuctTape *conn) {
-                    this->bindy->disconnect(conn_id);
-                    delete conn;
-                }
-        );
+        auto conn = std::shared_ptr<ConnectionDuctTape>(new ConnectionDuctTape(this->bindy, conn_id), [this, conn_id](ConnectionDuctTape *conn) {
+            this->bindy->disconnect(conn_id);
+        });
         this->conn_data_by_conn_id[conn_id] = conn;
         return conn;
     }
@@ -331,7 +274,7 @@ public:
 
         this->conn = conn;
         this->serial = serial;
-    }
+    };
 
     urpc_device_xinet_t(const urpc_device_xinet_t &other) = delete;
     urpc_device_xinet_t(urpc_device_xinet_t &&other) = delete;
@@ -380,35 +323,15 @@ public:
         ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "request to device with serial %" PRIu32 " has been successfully executed!", serial);
     }
 
-    void send_close_device_request()
+    ~urpc_device_xinet_t()
     {
-        try
-        {
-            std::vector<uint8_t> request(sizeof(urpc_xinet_common_header_t), 0);
-            write_uint32(&request.at(0), URPC_XINET_PROTOCOL_VERSION);
-            write_uint32(&request.at(4), URPC_CLOSE_DEVICE_REQUEST_PACKET_TYPE);
-            write_uint32(&request.at(12), this->serial);
+        std::vector<uint8_t> request(sizeof(urpc_xinet_common_header_t), 0);
+        write_uint32(&request.at(0), URPC_XINET_PROTOCOL_VERSION);
+        write_uint32(&request.at(4), URPC_CLOSE_DEVICE_REQUEST_PACKET_TYPE);
+        write_uint32(&request.at(12), this->serial);
 
-            this->conn->send_request_and_wait_response(request);
-        }
-        catch(const std::exception &e)
-        {
-            ZF_LOGE("failed to send close request to device with serial %"
-                            PRIu32
-                            "... ", serial);
-        }
-    }
-
-    void disconnect()
-    {
-        try
-        {
-            this->conn->disconnect();
-        }
-        catch(const std::exception &e)
-        {
-            ZF_LOGE("failed to disconnect device with serial %" PRIu32 "... ", serial);
-        }
+        std::vector<uint8_t> response = this->conn->send_request_and_wait_response(request);
+        this->conn->disconnect();
     }
 };
 
@@ -419,7 +342,7 @@ urpc_device_xinet_create(
 ){
     unsigned long serial = strtoul(path, nullptr, 16);
 
-    if(serial > UINT32_MAX)
+    if(serial > (std::numeric_limits<uint32_t>::max)())
     {
         ZF_LOGE("can't convert path %s to serial number due to uint32 overflow", path);
         return nullptr;
@@ -427,10 +350,9 @@ urpc_device_xinet_create(
 
     try
     {
-        auto res = new urpc_device_xinet_t(host, static_cast<uint32_t>(serial));
-        return res;
+        return new urpc_device_xinet_t(host, static_cast<uint32_t>(serial));
     }
-    catch(const std::exception &e)
+    catch(const std::exception &)
     {
         return nullptr;
     }
@@ -465,35 +387,25 @@ urpc_device_xinet_send_request(
 
 urpc_result_t
 urpc_device_xinet_destroy(
-        struct urpc_device_xinet_t *device
+        struct urpc_device_xinet_t **device_ptr
 )
 {
-    if(device == nullptr)
+    assert(device_ptr != nullptr);
+    urpc_device_xinet_t *device = *device_ptr;
+    assert(device != nullptr);
+    *device_ptr = nullptr;
+
+    try
+    {
+        delete device;
+        return urpc_result_ok;
+    }
+    catch(const DeviceLost &)
     {
         return urpc_result_nodevice;
     }
-
-    urpc_result_t status = urpc_result_ok;
-
-    try
-    {
-        device->send_close_device_request();
-    }
     catch(const std::exception &)
     {
-        status = urpc_result_error;
+        return urpc_result_error;
     }
-
-    try
-    {
-        device->disconnect();
-    }
-    catch(const std::exception &)
-    {
-        status = urpc_result_error;
-    }
-
-    delete device;
-
-    return status;
 }
