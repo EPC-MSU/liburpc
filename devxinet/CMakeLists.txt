@@ -1,5 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
+add_definitions( -DZF_LOG_LEVEL=ZF_LOG_WARN )
+
 macro(use_cxx11)
   if (CMAKE_VERSION VERSION_LESS "3.1")
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -30,7 +32,7 @@ IF(NOT HAS_PARENT)
         ADD_SUBDIRECTORY(.. liburpc)
     ENDFUNCTION()
     ADD_SUBDIRECTORY_LIBURPC()
-    ADD_EXECUTABLE(urpc-xinet-server common.cpp server.cpp)
+    ADD_EXECUTABLE(urpc-xinet-server common.cpp server.cpp supervisor.cpp)
     TARGET_LINK_LIBRARIES(urpc-xinet-server zf_log urpc bindy)
 ELSE()
     PROJECT(urpc-xinet CXX)

@@ -54,7 +54,6 @@ urpc_result_t urpc_serial_port_open(
         return urpc_result_error;
     }
 
-
     /* Adjust settings */
     struct termios options;
 
@@ -157,14 +156,36 @@ urpc_result_t urpc_read_serial_port(
     return urpc_result_ok;
 }
 
+int wait_for_write_available(urpc_handle_t handle)
+{
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(handle, &rfds);
+
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = URPC_PORT_TIMEOUT * 1000;
+
+    int wait_result = select(handle + 1, NULL, &rfds, NULL, &tv);
+    FD_CLR(handle, &rfds);
+    return wait_result;
+}
+
 urpc_result_t urpc_serial_port_write(
     urpc_handle_t handle,
     const void *buf,
     size_t *amount
 )
 {
+    if (!wait_for_write_available(handle))
+    {
+        ZF_LOGE("serial port write failed: resource busy");
+        return urpc_result_nodevice;
+    }
+
     size_t want_to_write = *amount;
     ssize_t actually_written = write(handle, buf, want_to_write);
+
     if (actually_written == -1)
     {
         int error_code = errno;
@@ -175,7 +196,6 @@ urpc_result_t urpc_serial_port_write(
     *amount = (size_t)actually_written;
     return urpc_result_ok;
 }
-
 
 /*
  * Misc

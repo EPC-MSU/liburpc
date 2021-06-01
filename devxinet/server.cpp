@@ -3,14 +3,18 @@
 #include <cassert>
 #include <map>
 #include <mutex>
+#include <iostream>
 
-#define ZF_LOG_LEVEL ZF_LOG_DEBUG
 #include <zf_log.h>
 
 #include "../urpc.h"
 #include "bindy/bindy.h"
 #include "bindy/tinythread.h"
 #include "common.hpp"
+
+#include "supervisor.hpp"
+
+Supervisor supervisor;
 
 
 bindy::Bindy * pb = NULL;
@@ -266,6 +270,12 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
     read_uint32(&command_code, &data[4]);
     read_uint32(&serial, &data[12]); // strictly speaking it might read junk in case of enumerate_reply or something else which does not have the serial... if someone sends us such packet
 
+    /*
+     * Capture and release (in destructor) serial number
+     * if it is captured many times, but never freed, the supervisor will kill this device
+     */
+    SupervisorLock _s = SupervisorLock(&supervisor, std::to_string(serial));
+
     switch (command_code) {
         case URPC_COMMAND_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received command request packet.", conn_id );
@@ -349,23 +359,56 @@ void ignore_sigpipe()
     sigaction(SIGPIPE, &act, NULL);
 }
 
+void print_help(char *argv[])
+{
+    std::cout << "Usage: " << argv[0] << " keyfile [{disable_supervisor/enable_supervisor}] [supervisor_limit]"
+              << std::endl
+              << "Examples: " << std::endl
+              << argv[0] << " ~/keyfile.sqlite" << std::endl
+              << argv[0] << " ~/keyfile.sqlite enable_supervisor" << std::endl
+              << argv[0] << " ~/keyfile.sqlite disable_supervisor" << std::endl
+              << argv[0] << " ~/keyfile.sqlite enable_supervisor 30" << std::endl
+              << "Supervisor will be enabled by default" << std::endl;
+}
 
 int main(int argc, char *argv[])
 {
     ignore_sigpipe();   // Don't remove!
 
-    if (argc != 2) {
-        printf("Usage: %s keyfile\n", argv[0]);
+    if (argc < 2) 
+    {
+        print_help(argv);
         return 0;
-    } else {
-        bindy::Bindy bindy(argv[1], true, false);
-        pb = &bindy;
-
-        ZF_LOGI("Starting server...");
-        bindy.connect();
-        bindy.set_handler(&callback_data);
-        bindy.set_discnotify(&callback_disc);
     }
+
+    bindy::Bindy bindy(argv[1], true, false);
+    pb = &bindy;
+
+    if (argc > 2) 
+    {
+        if (strcmp(argv[2], "disable_supervisor") == 0)
+        {
+            supervisor.stop();
+        }
+        else if (strcmp(argv[2], "enable_supervisor") == 0)
+        {
+          ; // already enabled
+        }
+        else
+        {
+            print_help(argv);
+            return 0;
+        }
+    }
+    if (argc == 4)
+    {
+        supervisor.set_limit(std::stoi(argv[3]));
+    }
+
+    ZF_LOGI("Starting server...");
+    bindy.connect();
+    bindy.set_handler(&callback_data);
+    bindy.set_discnotify(&callback_disc);
 
     ZF_LOGI("Server stopped.");
     return 0;
