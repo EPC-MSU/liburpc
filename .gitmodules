@@ -1,0 +1,9 @@
+[submodule "vendor/zf_log"]
+	path = vendor/zf_log
+	url = https://github.com/wonder-mice/zf_log.git
+[submodule "vendor/tinycthread"]
+	path = vendor/tinycthread
+	url = https://github.com/tinycthread/tinycthread.git
+[submodule "devxinet/vendor/bindy"]
+	path = devxinet/vendor/bindy
+	url = https://github.com/epc-msu/Bindy
