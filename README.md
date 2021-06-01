@@ -20,7 +20,7 @@ make -j$(nproc)
 
 ## XiNet сервер
 
-XiNet это сервер, который запускается на БВВУ и Cubieboard. Он нужен для 
+XiNet это сервер, который запускается на Cubieboard (https://doc.xisupport.com/en/8smc5-usb/8SMCn-USB/Related_products/Control_via_Ethernet/Ethernet_adapters_Overview.html). Он нужен для 
 работы с контроллерами по сети. Этот сервер не зависит от протокола, по сути он просто 
 перенаправляет TCP трафик от xi-net://{host}/{serial} в /dev/ximc/{serial} и обратно. 
 
