@@ -1,6 +1,11 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-add_definitions( -DZF_LOG_LEVEL=ZF_LOG_WARN )
+option(ENABLE_SUPERVISOR "Enable supervisor" ON)
+if (WIN32)
+  set(ENABLE_SUPERVISOR OFF CACHE INTERNAL "")
+endif()
+
+add_definitions( -DZF_LOG_LEVEL=ZF_LOG_DEBUG )
 
 macro(use_cxx11)
   if (CMAKE_VERSION VERSION_LESS "3.1")
@@ -32,7 +37,18 @@ IF(NOT HAS_PARENT)
         ADD_SUBDIRECTORY(.. liburpc)
     ENDFUNCTION()
     ADD_SUBDIRECTORY_LIBURPC()
-    ADD_EXECUTABLE(urpc-xinet-server common.cpp server.cpp supervisor.cpp)
+    set(SOURCES 
+        common.cpp
+        server.cpp)
+    if (ENABLE_SUPERVISOR)
+      set(SOURCES ${SOURCES} supervisor.cpp)
+    endif()
+    if (WIN32)
+      set(SOURCES ${SOURCES} platform-win32.cpp)
+    else()
+      set(SOURCES ${SOURCES} platform-posix.cpp)
+    endif()
+    ADD_EXECUTABLE(urpc-xinet-server ${SOURCES})
     TARGET_LINK_LIBRARIES(urpc-xinet-server zf_log urpc bindy)
 ELSE()
     PROJECT(urpc-xinet CXX)

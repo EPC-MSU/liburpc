@@ -11,10 +11,13 @@
 #include "bindy/bindy.h"
 #include "bindy/tinythread.h"
 #include "common.hpp"
+#include "platform.h"
 
+#ifdef ENABLE_SUPERVISOR
 #include "supervisor.hpp"
 
 Supervisor supervisor;
+#endif
 
 
 bindy::Bindy * pb = NULL;
@@ -42,12 +45,7 @@ private:
 // All thread-safe locks happen inside Supermap; Device class doesn't know about it
 // static
 Device * Device::create(conn_id_t conn_id, uint32_t serial) {
-    static const std::string addr_prefix = "com:///dev/ximc/";
-
-    char devstr[9]; // large enough to hold a uint32_t serial in hex + terminating null, so 9 bytes
-    sprintf(devstr, "%08X", serial);
-
-    const std::string addr = addr_prefix + devstr;
+    const std::string addr = serial_to_address(serial);
     ZF_LOGI("Open device %s for %u...", addr.c_str(), conn_id);
     urpc_device_handle_t handle = urpc_device_create(addr.c_str());
     if (handle == nullptr) {
@@ -270,11 +268,13 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
     read_uint32(&command_code, &data[4]);
     read_uint32(&serial, &data[12]); // strictly speaking it might read junk in case of enumerate_reply or something else which does not have the serial... if someone sends us such packet
 
+    #ifdef ENABLE_SUPERVISOR
     /*
      * Capture and release (in destructor) serial number
      * if it is captured many times, but never freed, the supervisor will kill this device
      */
     SupervisorLock _s = SupervisorLock(&supervisor, std::to_string(serial));
+    #endif
 
     switch (command_code) {
         case URPC_COMMAND_REQUEST_PACKET_TYPE: {
@@ -298,8 +298,11 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
             urpc_result_t result = urpc_device_send_request(
                     d->handle,
-                    cid, &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)], request_len,
-                    response.data(), response_len
+                    cid, 
+                    request_len ? &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)] : NULL, 
+                    request_len,
+                    response.data(), 
+                    response_len
             );
 
             DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
@@ -348,17 +351,6 @@ void callback_disc(conn_id_t conn_id) {
     supermap.removeConnection(conn_id);
 }
 
-
-// Don't remove! Otherwise, will fail on send() operation, if socket fails (inside bindy, inside cryptopp)!
-void ignore_sigpipe()
-{
-    struct sigaction act;
-    act.sa_handler = SIG_IGN;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    sigaction(SIGPIPE, &act, NULL);
-}
-
 void print_help(char *argv[])
 {
     std::cout << "Usage: " << argv[0] << " keyfile [{disable_supervisor/enable_supervisor}] [supervisor_limit]"
@@ -373,7 +365,11 @@ void print_help(char *argv[])
 
 int main(int argc, char *argv[])
 {
-    ignore_sigpipe();   // Don't remove!
+    int res = initialization();
+    if (!res)
+    {
+        return res;
+    }
 
     if (argc < 2) 
     {
@@ -384,6 +380,7 @@ int main(int argc, char *argv[])
     bindy::Bindy bindy(argv[1], true, false);
     pb = &bindy;
 
+    #ifdef ENABLE_SUPERVISOR
     if (argc > 2) 
     {
         if (strcmp(argv[2], "disable_supervisor") == 0)
@@ -404,6 +401,7 @@ int main(int argc, char *argv[])
     {
         supervisor.set_limit(std::stoi(argv[3]));
     }
+    #endif
 
     ZF_LOGI("Starting server...");
     bindy.connect();
