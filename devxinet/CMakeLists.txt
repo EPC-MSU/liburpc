@@ -5,7 +5,7 @@ if (WIN32)
   set(ENABLE_SUPERVISOR OFF CACHE INTERNAL "")
 endif()
 
-add_definitions( -DZF_LOG_LEVEL=ZF_LOG_DEBUG )
+add_definitions( -DZF_LOG_LEVEL=ZF_LOG_WARN )
 
 macro(use_cxx11)
   if (CMAKE_VERSION VERSION_LESS "3.1")
