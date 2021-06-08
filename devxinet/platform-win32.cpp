@@ -16,8 +16,6 @@ std::string serial_to_address(uint32_t serial)
 
 int initialization()
 {
-    // TODO: does we need 'ignore_sigpipe' like on posix platform?
-
     WSADATA wsaData;
 
     int iResult;

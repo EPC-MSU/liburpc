@@ -365,16 +365,16 @@ void print_help(char *argv[])
 
 int main(int argc, char *argv[])
 {
-    int res = initialization();
-    if (!res)
-    {
-        return res;
-    }
-
     if (argc < 2) 
     {
         print_help(argv);
         return 0;
+    }
+
+    int res = initialization();
+    if (res)
+    {
+        return res;
     }
 
     bindy::Bindy bindy(argv[1], true, false);
