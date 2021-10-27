@@ -8,9 +8,11 @@ urpc.ximc.ru из файла с описанием протокола, и liburp
 
 ## Библиотека
 
-Для сборки liburpc в корне проекта сделать cmake + make:
+Для сборки liburpc нужно сделать всего лишь cmake + make, но это принято делать в отдельной папке build, чтобы не замусоривать этот и все зависимые проекты временными файлами:
 ```shell
-cmake CMakeLists.txt
+mkdir build
+cd build
+cmake ..
 make -j$(nproc)
 ```
 
@@ -27,11 +29,13 @@ TCP трафик от xi-net://{host}/{serial} в /dev/ximc/{serial} и обра
 В этом же сервере есть мультиплексор. Это значит, можно запустить его на хосте, где подключено устройство, и 
 подключать несколько клиентов через этот сервер. 
 
-Для сборки xinet сервера надо встать в папку devxinet и сделать cmake + make:
+Для сборки xinet сервера надо встать в папку devxinet и сделать cmake + make, как и ранее, создав отдельную папку build:
 ```shell
 cd devxinet
-cmake CMakeLists.txt -DCMAKE_BUILD_TYPE=Release
-make
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
 ```
 
 Для релизной сборки важно указать -DCMAKE_BUILD_TYPE=Release: обращения к xinet серверу
