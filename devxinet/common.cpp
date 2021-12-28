@@ -17,7 +17,8 @@ size_t adaptive_wait_send(bindy::Bindy* bindy, conn_id_t conn_id, std::vector<ui
         }
         catch (const std::exception &e)
         {
-            ZF_LOGE("Can\'t send data: %s.", e.what());
+			ZF_LOGE("Can\'t send data: %s", e.what());
+			std::cerr <<  " +Thread Id : " << std::this_thread::get_id() << "\n";
 
             bindy::sleep_ms(delay);
             delay = static_cast<int>(delay * 3 / 2);

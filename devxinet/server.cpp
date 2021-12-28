@@ -76,18 +76,46 @@ Device::Device(conn_id_t conn_id, uint32_t serial, urpc_device_handle_t handle):
 class Supermap {
 public:
     Device* findDevice(conn_id_t conn_id, uint32_t serial);
+	urpc_device_handle_t findDeviceHandle(conn_id_t conn_id, uint32_t serial);
     bool addDevice(conn_id_t conn_id, uint32_t serial);
     void removeDevice(conn_id_t conn_id, uint32_t serial);
     void removeConnection(conn_id_t conn_id);
+	void printfSuperMap();
 
+	tthread::mutex map_mutex;
 private:
     std::map<conn_id_t, std::map<uint32_t, Device*> > devices_by_connection;    // connection -> serial -> device ptr
     std::map<uint32_t, std::pair<Device*, int>> devices_by_serial;  // serial -> (device ptr, users)
-    tthread::mutex map_mutex;
+    //tthread::mutex map_mutex;
 };
 
+// для разделения доступа
+static tthread::mutex *stdout1_mutex = new tthread::mutex();
+// try to print this map
+void Supermap::printfSuperMap()
+{
+	stdout1_mutex->lock();
+	printf("Supermap state devices_by_connection\n");
+	for (auto m : devices_by_connection)
+	{
+		printf("  conn_id %u\n", m.first);
+		for (auto m1 : m.second)
+			printf("       serial %u, Device * conn_id %u, Device * serial %u, Device urpc_handle %u\n", 
+			                 m1.first, m1.second -> conn_id, m1.second -> serial, m1.second -> handle);
+
+	}
+	printf("Supermap state devices_by_serial\n");
+	for (auto m : devices_by_serial)
+	{
+		printf("  serial %u, Device * conn_id %u, Device * serial %u, Device urpc_handle %u, number of conns: %u\n",
+			m.first, m.second.first->conn_id, m.second.first->serial, m.second.first->handle, m.second.second);
+	
+	}
+	stdout1_mutex->unlock();
+}
+
 Device* Supermap::findDevice(conn_id_t conn_id, uint32_t serial) {
-    std::lock_guard<tthread::mutex> map_lock(map_mutex);
+   std::lock_guard<tthread::mutex> map_lock(map_mutex);
 
     Device* ptr = nullptr;
     if (devices_by_connection.count(conn_id) > 0 && devices_by_connection.at(conn_id).count(serial) > 0) {
@@ -96,6 +124,18 @@ Device* Supermap::findDevice(conn_id_t conn_id, uint32_t serial) {
 
     return ptr;
 }
+
+urpc_device_handle_t Supermap::findDeviceHandle(conn_id_t conn_id, uint32_t serial) {
+	std::lock_guard<tthread::mutex> map_lock(map_mutex);
+
+	//Device* ptr = nullptr;
+	if (devices_by_connection.count(conn_id) > 0 && devices_by_connection.at(conn_id).count(serial) > 0) {
+	  return devices_by_connection.at(conn_id).at(serial) ->handle;
+	}
+
+	return 0;
+}
+
 
 // returns true if addition was successful, or device already exists and available; otherwise returns false
 bool Supermap::addDevice(conn_id_t conn_id, uint32_t serial) {
@@ -126,7 +166,7 @@ bool Supermap::addDevice(conn_id_t conn_id, uint32_t serial) {
             ZF_LOGE("Can\'t open device with serial: %u: %s.", serial, e.what());
         }
     }
-
+	ZF_LOGE("Connection is to be done: connection : %u, serial: %u.", conn_id, serial);
     return device_opened;
 }
 
@@ -149,8 +189,10 @@ void Supermap::removeDevice(conn_id_t conn_id, uint32_t serial) {
 }
 
 void Supermap::removeConnection(conn_id_t conn_id) {
+	/*
     std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
+	ZF_LOGE("Before Removing connection: %u.", conn_id);
+	printfSuperMap();
     if (devices_by_connection.count(conn_id) > 0) {
         for (auto &serial_device_p: devices_by_connection.at(conn_id)) {
             auto &p = devices_by_serial.at(serial_device_p.first);
@@ -161,9 +203,12 @@ void Supermap::removeConnection(conn_id_t conn_id) {
                 --p.second;
             }
         }
-
+		
+		ZF_LOGE("Removing connection: %u.", conn_id);
         devices_by_connection.erase(conn_id);
+		printfSuperMap();
     }
+	*/
 }
 
 
@@ -279,9 +324,11 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
     switch (command_code) {
         case URPC_COMMAND_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received command request packet.", conn_id );
-
+//			std::lock_guard<tthread::mutex> map_lock(supermap.map_mutex);
             Device * d = supermap.findDevice(conn_id, serial);
-            if(d == NULL) {
+			//urpc_device_handle_t u_h = supermap.findDeviceHandle(conn_id, serial);
+           if(d == NULL) {
+		//if (u_h == NULL) {
 //                //ZF_LOGD( "conn_id = " << conn_id << ", serial = " << std::to_string(serial) );
                 ZF_LOGE( "Request by %d for raw data to not opened serial, aborting...", conn_id );
                 throw std::runtime_error( "Serial not opened" );
@@ -297,7 +344,8 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             std::vector<uint8_t> response(response_len);
 
             urpc_result_t result = urpc_device_send_request(
-                    d->handle,
+                    //u_h, 
+					d->handle,
                     cid, 
                     request_len ? &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)] : NULL, 
                     request_len,
@@ -307,9 +355,12 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
             DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, d->serial, result, response.data(), response_len);
+					//response_packet(conn_id, serial, result, response.data(), response_len);
             if (!response_packet.send_data() || result == urpc_result_nodevice) {
                 ZF_LOGE( "To %u command response packet sending error.", conn_id );
-                supermap.removeConnection(conn_id);
+			    //supermap.removeConnection(conn_id);
+				throw std::exception("Throw to do statndard disconnect!!!");
+			
             } else {
                 ZF_LOGD( "To %u command response packet sent.", conn_id );
             }
@@ -322,8 +373,9 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                     response_packet(conn_id, serial, supermap.addDevice(conn_id, serial));
             if (!response_packet.send_data()) {
                 ZF_LOGE( "To %u open device response packet sending error.", conn_id );
-                supermap.removeConnection(conn_id);
-            } else {
+		        //supermap.removeConnection(conn_id);
+				throw std::exception("Throw to do statndard disconnect!!!");
+		    } else {
                 ZF_LOGD( "To %u open device response packet sent.", conn_id );
             }
             break;

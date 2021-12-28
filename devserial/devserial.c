@@ -206,6 +206,14 @@ static urpc_result_t receive(urpc_handle_t handle, uint8_t *response, size_t len
     urpc_get_wallclock(&sec_beg, &msec_beg);
     sec_prev = sec_beg;
     msec_prev = msec_beg;
+
+	/*
+	result = command_port_receive(handle, response, len);
+
+	if (result == urpc_result_timeout) result = urpc_result_error;
+
+	*/
+	
     do
     {
         result = command_port_receive(handle, response, len);
@@ -230,13 +238,14 @@ static urpc_result_t receive(urpc_handle_t handle, uint8_t *response, size_t len
         msec_prev = msec_beg;
         ZF_LOGI("receive: passed %d msec, needed at least %d msec", delta_time, URPC_ZEROSYNC_TRIGGER_TIMEOUT);
     } while (delta_time < URPC_ZEROSYNC_TRIGGER_TIMEOUT);
-
+	
     // All retries
     ZF_LOGE("receive: receive finally timed out");
     if ((result = zerosync(handle)) != 0)
     {
         ZF_LOGE("receive: zerosync failed, nevermind");
     }
+	
 
     return result;
 }
