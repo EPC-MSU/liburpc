@@ -36,194 +36,6 @@ if (log_yes == true) ZF_LOGD(__VA_ARGS__)
 #define ZF_LOGIN(...) \
 if (log_yes == true) ZF_LOGI(__VA_ARGS__)
 
-class Device {
-public:
-    static Device * create(conn_id_t conn_id, uint32_t serial);
-
-    ~Device();
-
-    conn_id_t conn_id;
-    uint32_t serial;
-    urpc_device_handle_t handle;
-private:
-    Device(conn_id_t conn_id, uint32_t serial, urpc_device_handle_t handle);
-
-    Device(const Device & other); // please do not copy Device class, it makes no sense
-    Device & operator=(const Device & other); // do not assign it either
-};
-
-// All thread-safe locks happen inside Supermap; Device class doesn't know about it
-// static
-Device * Device::create(conn_id_t conn_id, uint32_t serial) {
-    const std::string addr = serial_to_address(serial);
-    ZF_LOGIN("Open device %s for %u...", addr.c_str(), conn_id);
-    urpc_device_handle_t handle = urpc_device_create(addr.c_str());
-    if (handle == nullptr) {
-        ZF_LOGE("Can\'t open device %s for %u.", addr.c_str(), conn_id);
-        return nullptr;
-    }
-
-    Device *device = new(std::nothrow) Device(conn_id, serial, handle);
-    if (device == nullptr) {
-        if (urpc_device_destroy(&handle) != urpc_result_ok) {
-            ZF_LOGE("Can not destroy opened device %s for %u.", addr.c_str(), conn_id);
-        }
-    }
-
-    return device;
-}
-
-Device::~Device() {
-    // close the device
-    urpc_device_destroy(&this->handle);
-}
-
-Device::Device(conn_id_t conn_id, uint32_t serial, urpc_device_handle_t handle):
-    conn_id(conn_id), serial(serial), handle(handle)
-{}
-
-
-class Supermap {
-public:
-    Device* findDevice(conn_id_t conn_id, uint32_t serial);
-	urpc_device_handle_t findDeviceHandle(conn_id_t conn_id, uint32_t serial);
-    bool addDevice(conn_id_t conn_id, uint32_t serial);
-    void removeDevice(conn_id_t conn_id, uint32_t serial);
-    void removeConnection(conn_id_t conn_id);
-	void printfSuperMap();
-
-	tthread::mutex map_mutex;
-private:
-    std::map<conn_id_t, std::map<uint32_t, Device*> > devices_by_connection;    // connection -> serial -> device ptr
-    std::map<uint32_t, std::pair<Device*, int>> devices_by_serial;  // serial -> (device ptr, users)
-    //tthread::mutex map_mutex;
-};
-
-// для разделения доступа
-static tthread::mutex *stdout1_mutex = new tthread::mutex();
-// try to print this map
-void Supermap::printfSuperMap()
-{
-	stdout1_mutex->lock();
-	printf("Supermap state devices_by_connection\n");
-	for (auto m : devices_by_connection)
-	{
-		printf("  conn_id %u\n", m.first);
-		for (auto m1 : m.second)
-			printf("       serial %u, Device * conn_id %u, Device * serial %u, Device urpc_handle %u\n", 
-			                 m1.first, m1.second -> conn_id, m1.second -> serial, m1.second -> handle);
-
-	}
-	printf("Supermap state devices_by_serial\n");
-	for (auto m : devices_by_serial)
-	{
-		printf("  serial %u, Device * conn_id %u, Device * serial %u, Device urpc_handle %u, number of conns: %u\n",
-			m.first, m.second.first->conn_id, m.second.first->serial, m.second.first->handle, m.second.second);
-	
-	}
-	stdout1_mutex->unlock();
-}
-
-Device* Supermap::findDevice(conn_id_t conn_id, uint32_t serial) {
-   std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
-    Device* ptr = nullptr;
-    if (devices_by_connection.count(conn_id) > 0 && devices_by_connection.at(conn_id).count(serial) > 0) {
-        ptr = devices_by_connection.at(conn_id).at(serial);
-    }
-
-    return ptr;
-}
-
-urpc_device_handle_t Supermap::findDeviceHandle(conn_id_t conn_id, uint32_t serial) {
-	std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
-	//Device* ptr = nullptr;
-	if (devices_by_connection.count(conn_id) > 0 && devices_by_connection.at(conn_id).count(serial) > 0) {
-	  return devices_by_connection.at(conn_id).at(serial) ->handle;
-	}
-
-	return 0;
-}
-
-
-// returns true if addition was successful, or device already exists and available; otherwise returns false
-bool Supermap::addDevice(conn_id_t conn_id, uint32_t serial) {
-    bool device_opened = false;
-
-    std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
-    if (devices_by_connection[conn_id].count(serial) > 0) {  // Check if device already opened
-        ZF_LOGDN("Device with serial %lX already opened (for %u).", serial, conn_id);
-        device_opened = true;
-    } else if (devices_by_serial.count(serial) > 0) {           // Use previously opened by other user shared device
-        ZF_LOGDN("Use previously opened device with serial %lX (for %u).", serial, conn_id);
-        auto &p = devices_by_serial.at(serial);
-        ++p.second;
-        devices_by_connection.at(conn_id)[serial] = p.first;
-        device_opened = true;
-    } else {                                           // Open new device
-        ZF_LOGDN("Open new device with serial %lX for %u...", serial, conn_id);
-
-        try {
-            Device *d = Device::create(conn_id, serial);
-            if (d != nullptr) {
-                devices_by_serial.insert(std::make_pair(serial, std::make_pair(d, 1)));
-                devices_by_connection[conn_id][serial] = d;
-                device_opened = true;
-            }
-        } catch (const std::exception &e) {
-            ZF_LOGE("Can\'t open device with serial: %u: %s.", serial, e.what());
-        }
-    }
-	ZF_LOGDN("Connection is to be done: connection : %u, serial: %u.", conn_id, serial);
-	if (log_yes)printfSuperMap();
-    return device_opened;
-}
-
-void Supermap::removeDevice(conn_id_t conn_id, uint32_t serial) {
-    std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
-    if (devices_by_connection.count(conn_id) > 0) {
-        if (devices_by_connection[conn_id].count(serial) > 0) {
-            devices_by_connection[conn_id].erase(serial);
-
-            auto &p = devices_by_serial.at(serial);
-            if (p.second <= 1) {
-                delete p.first;
-                devices_by_serial.erase(serial);
-            } else {
-                --p.second;
-            }
-        }
-    }
-}
-
-void Supermap::removeConnection(conn_id_t conn_id) {
-	/*
-    std::lock_guard<tthread::mutex> map_lock(map_mutex);
-	ZF_LOGE("Before Removing connection: %u.", conn_id);
-	printfSuperMap();
-    if (devices_by_connection.count(conn_id) > 0) {
-        for (auto &serial_device_p: devices_by_connection.at(conn_id)) {
-            auto &p = devices_by_serial.at(serial_device_p.first);
-            if (p.second <= 1) {
-                delete p.first;
-                devices_by_serial.erase(serial_device_p.first);
-            } else {
-                --p.second;
-            }
-        }
-		
-		ZF_LOGE("Removing connection: %u.", conn_id);
-        devices_by_connection.erase(conn_id);
-		printfSuperMap();
-    }
-	*/
-}
-
-
-//Supermap supermap;
 
 
 // A write-preference Read-Write lock - taken from https://github.com/bo-yang/read_write_lock
@@ -284,35 +96,43 @@ private:
 // instead of Device - small wrapper over urpc_device  api
 class urpc_header {
 public:
-	urpc_header() : _valid(true), _uhandle(nullptr), _pmutex(nullptr){}
+	urpc_header(): _conn(0), _uhandle(nullptr), _pmutex(nullptr){ }
 	urpc_header(urpc_device_handle_t purpc);
 	static urpc_device_handle_t  create_urpc_h(uint32_t serial);
 	std::mutex * pmutex() const { return _pmutex; }
 	urpc_device_handle_t uhandle() const { return _uhandle; }
-	void clear();
+	void inc_conn() { _conn++; }
+	void dec_conn() { if (_conn != 0) _conn--; }
+	int n_of_conn() const { return _conn; }
 
-	void set_invalid() {_valid = false; }
+	void destroy_urpc();
+	void urpc_header::destroy_mutex();
+
+	void set_invalid() {/*_valid = false;*/ }
 	
-	bool is_valid() const { return _valid; }
+	bool is_valid() const { return true; /*return _valid;*/ }
 	//std::mutex * pmutex() const { return pmutex; }
 	urpc_header(const urpc_header& uh) 
 	{
 		_uhandle = uh.uhandle();
 		_pmutex = uh.pmutex();
-		_valid = uh.is_valid();
+		//_valid = uh.is_valid();
+		_conn = uh.n_of_conn();
 	}
 
 	urpc_header & operator=(const urpc_header & other)
 	{
 		_uhandle = other.uhandle();
 		_pmutex = other.pmutex();
-		_valid = other.is_valid();
+		//_valid = other.is_valid();
+		_conn = other.n_of_conn();
 		return *this;
 	}
 
 private:
 	std::mutex * _pmutex;
-	std::atomic<bool> _valid;
+	//std::atomic<bool> _valid;
+	std::atomic<int> _conn;
 	urpc_device_handle_t _uhandle;
 };
 
@@ -328,15 +148,29 @@ urpc_device_handle_t urpc_header::create_urpc_h(uint32_t serial)
 
 urpc_header::urpc_header(urpc_device_handle_t purpc):
 _uhandle(purpc),
-_valid(true)
+//_valid(true),
+_conn(1)
 {
    _pmutex = new std::mutex();
 }
 
-void urpc_header::clear()
+void urpc_header::destroy_urpc()
 {
-	if (_uhandle != nullptr) urpc_device_destroy(&_uhandle);
-	if (_pmutex != nullptr) delete _pmutex;
+	std::unique_lock<std::mutex> _lck(*_pmutex);
+	if (_uhandle != nullptr) 
+	{
+		urpc_device_destroy(&_uhandle);
+		_uhandle = nullptr;
+	}
+}
+
+void urpc_header::destroy_mutex()
+{
+	if (_pmutex != nullptr)
+	{
+		delete _pmutex;
+		_pmutex = nullptr;
+	}
 }
 
 // instead of Supermap
@@ -361,7 +195,7 @@ public:
 		uint8_t response_len);
 
 	bool is_opened_and_valid(uint32_t serial);
-	
+	void decrement_conn_or_remove_urpc_device(uint32_t serial);
 	void print_msu();
 private:
 	ReadWriteLock _rwlock;
@@ -373,9 +207,9 @@ MapSerialUrpc msu;
 void MapSerialUrpc::print_msu()
 {
 	_rwlock.read_lock();
-	for (auto m : *this)
+	for (auto & m : *this)
 	{
-		ZF_LOGDN("MapSerialUrpc_i: Serial %u -> (urpc ptr %u, ?is_valid %s\n", m.first, m.second.uhandle(), m.second.is_valid() ? "true" : "false");
+		ZF_LOGDN("MapSerialUrpc_i: Serial %u -> (urpc ptr %u, nunmber/conns %u\n", m.first, m.second.uhandle(), m.second.n_of_conn());
 			                  
 	}
 	_rwlock.read_unlock();
@@ -385,7 +219,7 @@ MapSerialUrpc::~MapSerialUrpc()
 {
 	for (auto m : *this)
 	{
-		m.second.clear();
+		m.second.destroy_urpc();
 	}
 }
 
@@ -393,34 +227,35 @@ MapSerialUrpc::~MapSerialUrpc()
 bool MapSerialUrpc::open_if_not(uint32_t serial)
 {
 	_rwlock.read_lock();
-	
-	urpc_header uh = (*this)[serial];
-	_rwlock.read_unlock();
-
+	urpc_header & uh = (*this)[serial];
 	// the device is already created but has invalid status
 	if (!uh.is_valid()) {
-		//_rwlock.write_unlock();  
+		_rwlock.read_unlock();  
 		return false;
 	};
 
-	// the device either created OK or  was not created
+	// the device either create OK or  was not created
 	if (uh.uhandle() != nullptr) {
-        //_rwlock.write_unlock();
+
+		uh.inc_conn();
+        _rwlock.read_unlock();
  		return true;
 	}
-	// not creted, create now
+	// not created, create now
 	urpc_device_handle_t purpc = urpc_header::create_urpc_h(serial);
 	if (purpc == nullptr) {
-		//_rwlock.write_unlock();
+		_rwlock.read_unlock();
 		return false;
 	};
-	urpc_header real_urpc(purpc);
+	_rwlock.read_unlock();
 	_rwlock.write_lock();
-	(*this)[serial] = real_urpc;
-	//insert(std::make_pair(serial, real_urpc));
-
-
-	_rwlock.write_unlock();
+	if ((*this)[serial].uhandle() == nullptr)
+	{
+		urpc_header real_urpc(purpc);
+		(*this)[serial] = real_urpc;
+		//insert(std::make_pair(serial, real_urpc));
+		_rwlock.write_unlock();
+	}
 	return true;
 }
 
@@ -428,11 +263,37 @@ bool MapSerialUrpc::is_opened_and_valid(uint32_t serial)
 {
 	bool ret;
 	_rwlock.read_lock();
-	urpc_header uh = (*this)[serial];
+	urpc_header & uh = (*this)[serial];
 	ret = uh.uhandle() != nullptr && uh.is_valid() == true;
 	_rwlock.read_unlock();
 	return ret;
 }
+
+void MapSerialUrpc::decrement_conn_or_remove_urpc_device(uint32_t serial)
+{
+	bool destroy_serial = false;
+	_rwlock.read_lock();
+	urpc_header & uh = (*this)[serial];
+	if (uh.uhandle() != nullptr)
+	{
+		uh.dec_conn();
+		if (uh.n_of_conn() == 0)
+		{
+			destroy_serial = true;
+			uh.destroy_urpc();
+		}
+	}
+	_rwlock.read_unlock();
+
+	if (!destroy_serial)  return;
+	_rwlock.write_lock();
+	urpc_header & uh1 = (*this)[serial];
+	if (uh1.pmutex() != nullptr)
+		uh1.destroy_mutex();
+	erase(serial);
+	_rwlock.write_unlock();
+}
+
 
 urpc_result_t MapSerialUrpc::operation_urpc_send_request(uint32_t serial,
 	const char cid[URPC_CID_SIZE],
@@ -441,21 +302,27 @@ urpc_result_t MapSerialUrpc::operation_urpc_send_request(uint32_t serial,
 	uint8_t *response,
 	uint8_t response_len)
 {
-	_rwlock.read_lock();
-	urpc_header uh = (*this)[serial];
-	_rwlock.read_unlock();
 	urpc_result_t res = urpc_result_nodevice;
+
+	_rwlock.read_lock();
+	urpc_header & uh = (*this)[serial];
+	//_rwlock.read_unlock();
+	
 	if (uh.is_valid() && uh.uhandle() != nullptr)
 	{
 		std::unique_lock<std::mutex> lck(*uh.pmutex());
 		res = urpc_device_send_request(uh.uhandle(), cid, request, request_len, response, response_len);
 	}
+
+	/*
 	if (res == urpc_result_nodevice)
 	{
 		_rwlock.write_lock();
 		(*this)[serial].set_invalid();
 		_rwlock.write_unlock();
 	}
+	*/
+	_rwlock.read_unlock();
 	return res;
 }
 
@@ -616,8 +483,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             if (!response_packet.send_data()) {
                 ZF_LOGE( "To %u open device response packet sending error.", conn_id );
 		        //supermap.removeConnection(conn_id);
-			
-			//throw std::runtime_error("response_packet.send_data = false");
+			    //throw std::runtime_error("response_packet.send_data = false");
 		    } else {
                 ZF_LOGDN( "To %u open device response packet sent.", conn_id );
             }
@@ -631,12 +497,13 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             DataPacket<URPC_CLOSE_DEVICE_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial);
             response_packet.send_data();
-            ZF_LOGDN( "To %u close device response packet sent.", conn_id );
+            ZF_LOGDN( "To connection %u close device response packet sent.", conn_id );
 			
+			msu.decrement_conn_or_remove_urpc_device(serial);
             //supermap.removeDevice(conn_id, serial);
-			//ZF_LOGDN("Device removed with serial_id=%u + ...", conn_id);
+			ZF_LOGDN("Connection or Device removed with conn_id=%u + ...", conn_id);
 			msu.print_msu();
-			// force thread final
+			// force socket thread final becouse of this exception
 			throw std::exception("Stopping socket_thread");
             break;
         }
