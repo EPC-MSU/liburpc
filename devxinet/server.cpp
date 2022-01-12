@@ -254,8 +254,9 @@ bool MapSerialUrpc::open_if_not(uint32_t serial)
 		urpc_header real_urpc(purpc);
 		(*this)[serial] = real_urpc;
 		//insert(std::make_pair(serial, real_urpc));
-		_rwlock.write_unlock();
+
 	}
+	_rwlock.write_unlock();
 	return true;
 }
 
