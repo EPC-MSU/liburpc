@@ -106,7 +106,7 @@ public:
 	int n_of_conn() const { return _conn; }
 
 	void destroy_urpc();
-	void urpc_header::destroy_mutex();
+	void destroy_mutex();
 
 	void set_invalid() {/*_valid = false;*/ }
 	
@@ -504,7 +504,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 			ZF_LOGDN("Connection or Device removed with conn_id=%u + ...", conn_id);
 			msu.print_msu();
 			// force socket thread final becouse of this exception
-			throw std::exception("Stopping socket_thread");
+			throw std::runtime_error("Stopping socket_thread");
             break;
         }
         default: {
