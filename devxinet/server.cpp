@@ -220,6 +220,7 @@ MapSerialUrpc::~MapSerialUrpc()
 	for (auto m : *this)
 	{
 		m.second.destroy_urpc();
+		m.second.destroy_mutex();
 	}
 }
 
@@ -249,7 +250,7 @@ bool MapSerialUrpc::open_if_not(uint32_t serial)
 	};
 	_rwlock.read_unlock();
 	_rwlock.write_lock();
-	if ((*this)[serial].uhandle() == nullptr)
+	if ((*this)[serial].uhandle() == nullptr) // multithreading !!!
 	{
 		urpc_header real_urpc(purpc);
 		(*this)[serial] = real_urpc;
