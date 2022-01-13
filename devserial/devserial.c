@@ -244,6 +244,7 @@ static urpc_result_t receive(urpc_handle_t handle, uint8_t *response, size_t len
     if ((result = zerosync(handle)) != 0)
     {
         ZF_LOGE("receive: zerosync failed, nevermind");
+		result = urpc_result_nodevice;
     }
 	
 

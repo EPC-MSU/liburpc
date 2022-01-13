@@ -96,43 +96,30 @@ private:
 // instead of Device - small wrapper over urpc_device  api
 class urpc_header {
 public:
-	urpc_header(): _conn(0), _uhandle(nullptr), _pmutex(nullptr){ }
+	urpc_header():  _uhandle(nullptr), _pmutex(nullptr){ }
 	urpc_header(urpc_device_handle_t purpc);
 	static urpc_device_handle_t  create_urpc_h(uint32_t serial);
 	std::mutex * pmutex() const { return _pmutex; }
 	urpc_device_handle_t uhandle() const { return _uhandle; }
-	void inc_conn() { _conn++; }
-	void dec_conn() { if (_conn != 0) _conn--; }
-	int n_of_conn() const { return _conn; }
-
 	void destroy_urpc();
 	void destroy_mutex();
-
-	void set_invalid() {/*_valid = false;*/ }
 	
-	bool is_valid() const { return true; /*return _valid;*/ }
-	//std::mutex * pmutex() const { return pmutex; }
 	urpc_header(const urpc_header& uh) 
 	{
 		_uhandle = uh.uhandle();
 		_pmutex = uh.pmutex();
-		//_valid = uh.is_valid();
-		_conn = uh.n_of_conn();
 	}
 
 	urpc_header & operator=(const urpc_header & other)
 	{
 		_uhandle = other.uhandle();
 		_pmutex = other.pmutex();
-		//_valid = other.is_valid();
-		_conn = other.n_of_conn();
 		return *this;
 	}
 
 private:
 	std::mutex * _pmutex;
 	//std::atomic<bool> _valid;
-	std::atomic<int> _conn;
 	urpc_device_handle_t _uhandle;
 };
 
@@ -147,9 +134,7 @@ urpc_device_handle_t urpc_header::create_urpc_h(uint32_t serial)
 }
 
 urpc_header::urpc_header(urpc_device_handle_t purpc):
-_uhandle(purpc),
-//_valid(true),
-_conn(1)
+_uhandle(purpc)
 {
    _pmutex = new std::mutex();
 }
@@ -173,6 +158,11 @@ void urpc_header::destroy_mutex()
 	}
 }
 
+
+// for spying connections
+typedef std::pair<conn_id_t, uint32_t>
+conn_serial;
+
 // instead of Supermap
 // MapSerialUrpc -  class to hold all involved urpc_devices in issue of multithreading
 // new features:
@@ -186,7 +176,7 @@ class MapSerialUrpc : public
 public:	
 	MapSerialUrpc(){};
 	~MapSerialUrpc();
-	bool open_if_not(uint32_t serial);
+	bool open_if_not(conn_id_t conn_id, uint32_t serial);
 	urpc_result_t operation_urpc_send_request(uint32_t serial,
 		const char cid[URPC_CID_SIZE],
 		const uint8_t *request,
@@ -195,10 +185,13 @@ public:
 		uint8_t response_len);
 
 	bool is_opened_and_valid(uint32_t serial);
-	void decrement_conn_or_remove_urpc_device(uint32_t serial);
+	// CHOOSE UINT32_MAx for unknown conn_id or serial
+	void decrement_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_t serial, bool force_urpc_remove = false);
 	void print_msu();
 private:
 	ReadWriteLock _rwlock;
+	//spy for tcp-connections
+	std::list<conn_serial> _conns;
 };
 
 
@@ -207,11 +200,20 @@ MapSerialUrpc msu;
 void MapSerialUrpc::print_msu()
 {
 	_rwlock.read_lock();
+
+	ZF_LOGDN("MapSerialUrpc:");
 	for (auto & m : *this)
 	{
-		ZF_LOGDN("MapSerialUrpc_i: Serial %u -> (urpc ptr %u, nunmber/conns %u\n", m.first, m.second.uhandle(), m.second.n_of_conn());
+		ZF_LOGDN("serial_%u -> (urpc ptr %u; mutex ptr %u\n", m.first, m.second.uhandle(), m.second.pmutex());
 			                  
 	}
+
+	ZF_LOGDN("MapSerialUrpc connections pairs:");
+	for (auto & m : _conns)
+	{
+		ZF_LOGDN("conn_id %u - serial %u\n", m.first, m.second);
+	}
+
 	_rwlock.read_unlock();
 }
 
@@ -225,35 +227,56 @@ MapSerialUrpc::~MapSerialUrpc()
 }
 
 
-bool MapSerialUrpc::open_if_not(uint32_t serial)
+static bool _find_conn(const conn_serial & item, conn_id_t conn_id)
+{
+	return item.first == conn_id;
+}
+
+bool _find_serial(const conn_serial & item, uint32_t serial)
+{
+	return item.second == serial;
+}
+
+bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
 {
 	_rwlock.read_lock();
+				
+	// first, glance, if any is already in list 
+	if (std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id)) !=
+		_conns.cend())
+	{
+		_rwlock.read_unlock();
+		return true;
+	}
+
 	urpc_header & uh = (*this)[serial];
-	// the device is already created but has invalid status
-	if (!uh.is_valid()) {
-		_rwlock.read_unlock();  
-		return false;
-	};
 
 	// the device either create OK or  was not created
 	if (uh.uhandle() != nullptr) {
-
-		uh.inc_conn();
-        _rwlock.read_unlock();
+      	_rwlock.read_unlock();
+		_rwlock.write_lock();
+		_conns.insert(_conns.cend(), std::make_pair(conn_id, serial));
+		_rwlock.write_unlock();
  		return true;
 	}
+
+	// read lock is still on
+
 	// not created, create now
 	urpc_device_handle_t purpc = urpc_header::create_urpc_h(serial);
 	if (purpc == nullptr) {
 		_rwlock.read_unlock();
 		return false;
-	};
-	_rwlock.read_unlock();
+	}
+	else
+	    _rwlock.read_unlock();
+
 	_rwlock.write_lock();
 	if ((*this)[serial].uhandle() == nullptr) // multithreading !!!
 	{
 		urpc_header real_urpc(purpc);
 		(*this)[serial] = real_urpc;
+		_conns.insert(_conns.cend(), conn_serial(conn_id, serial));
 		//insert(std::make_pair(serial, real_urpc));
 
 	}
@@ -266,20 +289,45 @@ bool MapSerialUrpc::is_opened_and_valid(uint32_t serial)
 	bool ret;
 	_rwlock.read_lock();
 	urpc_header & uh = (*this)[serial];
-	ret = uh.uhandle() != nullptr && uh.is_valid() == true;
+	ret = uh.uhandle() != nullptr /*&& uh.is_valid() == true*/ ;
 	_rwlock.read_unlock();
 	return ret;
 }
 
-void MapSerialUrpc::decrement_conn_or_remove_urpc_device(uint32_t serial)
+void MapSerialUrpc::decrement_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_t serial_known, bool force_urpc_remove)
 {
+	if (conn_id == UINT32_MAX && serial_known == UINT32_MAX)
+		return;
+
 	bool destroy_serial = false;
+	uint32_t serial = serial_known;
+
+	if (conn_id != UINT32_MAX)   // conn_id is known
+	{
+		// first,  find and remove_connection
+		_rwlock.write_lock();
+
+		std::list<conn_serial>::const_iterator it;
+		if ((it = std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id))) !=
+			_conns.cend())
+		{
+			if (serial_known == UINT32_MAX)
+				serial = it->second;
+			_conns.erase(it);
+		}
+		_rwlock.write_unlock();
+	}
+
+	if (serial == UINT32_MAX) return;
+
 	_rwlock.read_lock();
 	urpc_header & uh = (*this)[serial];
 	if (uh.uhandle() != nullptr)
 	{
-		uh.dec_conn();
-		if (uh.n_of_conn() == 0)
+		if ((force_urpc_remove == true) || 
+			std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial)) ==
+			_conns.cend())
+
 		{
 			destroy_serial = true;
 			uh.destroy_urpc();
@@ -290,9 +338,18 @@ void MapSerialUrpc::decrement_conn_or_remove_urpc_device(uint32_t serial)
 	if (!destroy_serial)  return;
 	_rwlock.write_lock();
 	urpc_header & uh1 = (*this)[serial];
-	if (uh1.pmutex() != nullptr)
+	if (uh1.pmutex() != nullptr && uh1.uhandle() == nullptr)
 		uh1.destroy_mutex();
 	erase(serial);
+	if (conn_id != UINT32_MAX)
+	{
+		for (auto it = _conns.cbegin(); it != _conns.cend(); it++)
+		{
+			if (it->first == conn_id)
+				_conns.erase(it);
+
+		}
+	}
 	_rwlock.write_unlock();
 }
 
@@ -308,23 +365,21 @@ urpc_result_t MapSerialUrpc::operation_urpc_send_request(uint32_t serial,
 
 	_rwlock.read_lock();
 	urpc_header & uh = (*this)[serial];
-	//_rwlock.read_unlock();
 	
-	if (uh.is_valid() && uh.uhandle() != nullptr)
+	if (uh.uhandle() != nullptr)
 	{
 		std::unique_lock<std::mutex> lck(*uh.pmutex());
 		res = urpc_device_send_request(uh.uhandle(), cid, request, request_len, response, response_len);
 	}
 
-	/*
+	_rwlock.read_unlock();
+
 	if (res == urpc_result_nodevice)
 	{
-		_rwlock.write_lock();
-		(*this)[serial].set_invalid();
-		_rwlock.write_unlock();
+		decrement_conn_or_remove_urpc_device(UINT32_MAX, serial, true);
+		ZF_LOGE("The urpc device with  serial %u returned urpc_result_nodevice and was closed", serial);
 	}
-	*/
-	_rwlock.read_unlock();
+	
 	return res;
 }
 
@@ -467,10 +522,8 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 			DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, /*d->serial*/ serial, result, response.data(), response_len);
 			if (!response_packet.send_data() || result == urpc_result_nodevice) {
-                ZF_LOGE( "To %u command response packet sending error.", conn_id );
-			    //supermap.removeConnection(conn_id);
-				//throw std::runtime_error("response_packet.send_data = false");
-
+                ZF_LOGE( "To %u command response not sent.", conn_id );
+			 				
             } else {
                 ZF_LOGDN( "To %u command response packet sent.", conn_id );
             }
@@ -481,11 +534,10 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
             DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial, //supermap.addDevice(conn_id, serial)
-					                                    msu.open_if_not(serial));
+					                                    msu.open_if_not(conn_id, serial));
             if (!response_packet.send_data()) {
                 ZF_LOGE( "To %u open device response packet sending error.", conn_id );
-		        //supermap.removeConnection(conn_id);
-			    //throw std::runtime_error("response_packet.send_data = false");
+		        
 		    } else {
                 ZF_LOGDN( "To %u open device response packet sent.", conn_id );
             }
@@ -501,10 +553,10 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             response_packet.send_data();
             ZF_LOGDN( "To connection %u close device response packet sent.", conn_id );
 			
-			msu.decrement_conn_or_remove_urpc_device(serial);
-            //supermap.removeDevice(conn_id, serial);
-			ZF_LOGDN("Connection or Device removed with conn_id=%u + ...", conn_id);
-			msu.print_msu();
+			//msu.decrement_conn_or_remove_urpc_device(conn_id, serial, false);
+            
+			//ZF_LOGDN("Connection or Device removed with conn_id=%u + ...", conn_id);
+			//msu.print_msu();
 			// force socket thread final becouse of this exception
 			throw std::runtime_error("Stopping socket_thread");
             break;
@@ -519,7 +571,9 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
 void callback_disc(conn_id_t conn_id) {
     //supermap.removeConnection(conn_id);
-	
+	msu.decrement_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
+	ZF_LOGDN("Connection or Device removed with conn_id=%u + ...", conn_id);
+	msu.print_msu();
 }
 
 void print_help(char *argv[])
