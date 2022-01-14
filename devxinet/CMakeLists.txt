@@ -39,7 +39,8 @@ IF(NOT HAS_PARENT)
     ADD_SUBDIRECTORY_LIBURPC()
     set(SOURCES 
         common.cpp
-        server.cpp)
+        server.cpp
+        mapserialurpc.cpp)
     if (ENABLE_SUPERVISOR)
       set(SOURCES ${SOURCES} supervisor.cpp)
     endif()
