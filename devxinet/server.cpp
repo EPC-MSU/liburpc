@@ -4,6 +4,8 @@
 #include <map>
 #include <mutex>
 #include <iostream>
+#include <algorithm>
+#include <functional>
 
 //#define ENABLE_SUPERVISOR
 
