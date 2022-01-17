@@ -24,18 +24,29 @@ if (log_yes == true) ZF_LOGI(__VA_ARGS__)
 class UrpcDevicePHandleGuard {
 public:
 	UrpcDevicePHandleGuard() : _uhandle(nullptr), _pmutex(nullptr){ }
-	UrpcDevicePHandleGuard(urpc_device_handle_t purpc);
 	/*
 	* Creates urpc device handle pointer, calls urpc device creation function
 	*/
-	static urpc_device_handle_t  create_urpc_h(uint32_t serial); // creates urpc device handle
+	static urpc_device_handle_t  create_urpc_h(uint32_t serial, std::mutex *pm); // creates urpc device handle
+
+	/*
+	* Executes urpc request operation.
+	*/
+	urpc_result_t urpc_send_request(const char cid[URPC_CID_SIZE],
+		const uint8_t *request,
+		uint8_t request_len,
+		uint8_t *response,
+		uint8_t response_len);
+
 	std::mutex *pmutex() const { return _pmutex; }
 	urpc_device_handle_t uhandle() const { return _uhandle; }
 	/*
 	* Destroys urpc device? must be call before destrou_mutex()
 	*/
-	void destroy_urpc();
+	void destroy_urpc_h();
 	void destroy_mutex();
+	void create_mutex() { _pmutex = new std::mutex(); }
+	void set_urpc_h(urpc_device_handle_t h) { _uhandle = h; }
 
 	UrpcDevicePHandleGuard(const UrpcDevicePHandleGuard &uh)
 	{
