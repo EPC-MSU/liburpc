@@ -5,6 +5,7 @@
 #include <mutex>
 #include <iostream>
 
+#define ZF_LOG_OUTPUT_LEVEL g_module_log_level  // for runtime log control (see zf_log.h for examples)
 #include <zf_log.h>
 
 #include "../urpc.h"
@@ -19,6 +20,7 @@
 Supervisor supervisor;
 #endif
 
+static int g_module_log_level = ZF_LOG_INFO;
 
 bindy::Bindy * pb = NULL;
 
@@ -353,7 +355,8 @@ void callback_disc(conn_id_t conn_id) {
 
 void print_help(char *argv[])
 {
-    std::cout << "Usage: " << argv[0] << " keyfile [{disable_supervisor/enable_supervisor}] [supervisor_limit]"
+	/*
+	std::cout << "Usage: " << argv[0] << " keyfile [{disable_supervisor/enable_supervisor}] [supervisor_limit]"
               << std::endl
               << "Examples: " << std::endl
               << argv[0] << " ~/keyfile.sqlite" << std::endl
@@ -361,22 +364,43 @@ void print_help(char *argv[])
               << argv[0] << " ~/keyfile.sqlite disable_supervisor" << std::endl
               << argv[0] << " ~/keyfile.sqlite enable_supervisor 30" << std::endl
               << "Supervisor will be enabled by default" << std::endl;
+			  */
+
+	std::cout << "Usage: " << argv[0] << " keyfile [debug]"
+		<< std::endl
+		<< "Examples: " << std::endl
+		<< argv[0] << " ~/keyfile.sqlite" << std::endl
+		<< argv[0] << " ~/keyfile.sqlite debug" << std::endl
+		<< "Debug logging will be disabled by default" << std::endl;
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) 
-    {
-        print_help(argv);
-        return 0;
-    }
 
-    int res = initialization();
-    if (res)
-    {
-        return res;
-    }
+	if (argc < 2)
+	{
+		print_help(argv);
+		std::cin.get();
+		return 0;
+	}
 
+	int res = initialization();
+	if (res)
+	{
+		return res;
+	}
+
+	g_module_log_level = ZF_LOG_WARN;
+
+	if (argc > 2)
+	{
+		if (strcmp(argv[2], "debug") == 0)
+		{
+			g_module_log_level = ZF_LOG_DEBUG;
+		}
+
+	}
+	
     bindy::Bindy bindy(argv[1], true, false);
     pb = &bindy;
 
@@ -408,6 +432,6 @@ int main(int argc, char *argv[])
     bindy.set_handler(&callback_data);
     bindy.set_discnotify(&callback_disc);
 
-    ZF_LOGI("Server stopped.");
+    //ZF_LOGI("Server stopped.");
     return 0;
 }
