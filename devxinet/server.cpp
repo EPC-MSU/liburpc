@@ -5,7 +5,7 @@
 #include <mutex>
 #include <iostream>
 
-#define ZF_LOG_OUTPUT_LEVEL g_module_log_level  // for runtime log control (see zf_log.h for examples)
+//#define ZF_LOG_OUTPUT_LEVEL g_module_log_level  // for runtime log control (see zf_log.h for examples)
 #include <zf_log.h>
 
 #include "../urpc.h"
@@ -374,6 +374,8 @@ void print_help(char *argv[])
 		<< "Debug logging will be disabled by default" << std::endl;
 }
 
+ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
+
 int main(int argc, char *argv[])
 {
 
@@ -390,13 +392,15 @@ int main(int argc, char *argv[])
 		return res;
 	}
 
-	g_module_log_level = ZF_LOG_WARN;
+	//g_module_log_level = ZF_LOG_WARN;
+	zf_log_set_output_level(ZF_LOG_WARN);
 
 	if (argc > 2)
 	{
 		if (strcmp(argv[2], "debug") == 0)
 		{
-			g_module_log_level = ZF_LOG_DEBUG;
+			//g_module_log_level = ZF_LOG_DEBUG;
+			zf_log_set_output_level(ZF_LOG_DEBUG);
 		}
 
 	}
