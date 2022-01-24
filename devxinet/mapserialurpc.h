@@ -8,14 +8,6 @@
 #include "platform.h"
 #include "rw_lock.h"
 
-
-#define ZF_LOGDN(...) \
-if (log_yes == true) ZF_LOGD(__VA_ARGS__)
-
-#define ZF_LOGIN(...) \
-if (log_yes == true) ZF_LOGI(__VA_ARGS__)
-
-
 /*
 * UrpcDevicePHandleGuard - class to contain urpc device handle pointer and
 * its guarding mutex.
@@ -118,8 +110,5 @@ private:
 	//spy for tcp-connections
 	std::list<conn_serial> _conns;
 };
-
-// for test logging
-extern bool log_yes;
 
 #endif

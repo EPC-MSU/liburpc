@@ -30,16 +30,12 @@ bindy::Bindy * pb = NULL;
 
 #define SEND_WAIT_TIMEOUT_MS 5000
 
-
-bool log_yes = false;
-
 MapSerialUrpc msu;
 
 class CommonDataPacket {
 public:
     bool send_data() {
         if (pb == NULL) {
-            //ZF_LOGDN( "pb == NULL in send_data()" );
             return false;
         }
         try {
@@ -113,7 +109,7 @@ public:
 
 // ========================================================
 void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
-    ZF_LOGDN("From %u received packet of length: %lu.", conn_id, data.size());
+    ZF_LOGD("From %u received packet of length: %lu.", conn_id, data.size());
 
     if (data.size() < 16) { // We need at least the protocol version and command code... and serial too
         ZF_LOGE( "From %u received incorrect data packet: Size: %lu, expected at least 16.", conn_id, data.size() );
@@ -143,7 +139,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
     switch (command_code) {
         case URPC_COMMAND_REQUEST_PACKET_TYPE: {
-            ZF_LOGDN( "From %u received command request packet.", conn_id );
+            ZF_LOGD( "From %u received command request packet.", conn_id );
             //Device * d = supermap.findDevice(conn_id, serial);
 			char cid[URPC_CID_SIZE];
 			std::memcpy(cid, &data[sizeof(urpc_xinet_common_header_t)], sizeof(cid));
@@ -178,12 +174,12 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                 ZF_LOGE( "To %u command response not sent.", conn_id );
 			 				
             } else {
-                ZF_LOGDN( "To %u command response packet sent.", conn_id );
+                ZF_LOGD( "To %u command response packet sent.", conn_id );
             }
 			break;
         }
         case URPC_OPEN_DEVICE_REQUEST_PACKET_TYPE: {
-            ZF_LOGDN( "From %u received open device request packet.", conn_id );
+            ZF_LOGD( "From %u received open device request packet.", conn_id );
 			msu.log();
             DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial, //supermap.addDevice(conn_id, serial)
@@ -192,30 +188,30 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                 ZF_LOGE( "To %u open device response packet sending error.", conn_id );
 		        
 		    } else {
-                ZF_LOGDN( "To %u open device response packet sent.", conn_id );
+                ZF_LOGD( "To %u open device response packet sent.", conn_id );
             }
-			if (added) ZF_LOGDN("New connection added conn_id=%u + ...", conn_id);
+			if (added) ZF_LOGD("New connection added conn_id=%u + ...", conn_id);
 			msu.log();
             break;
         }
         case URPC_CLOSE_DEVICE_REQUEST_PACKET_TYPE: {
-            ZF_LOGDN( "From %u received close device request packet.", conn_id );
+            ZF_LOGD( "From %u received close device request packet.", conn_id );
 
             DataPacket<URPC_CLOSE_DEVICE_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial);
             response_packet.send_data();
-            ZF_LOGDN( "To connection %u close device response packet sent.", conn_id );
+            ZF_LOGD( "To connection %u close device response packet sent.", conn_id );
 			
 			//msu.decrement_conn_or_remove_urpc_device(conn_id, serial, false);
             
-			//ZF_LOGDN("Connection or Device removed with conn_id=%u + ...", conn_id);
+			//ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
 			//msu.print_msu();
 			// force socket thread final becouse of this exception
 			throw std::runtime_error("Stopping socket_thread");
             break;
         }
         default: {
-            ZF_LOGDN( "Unknown packet code." );
+            ZF_LOGD( "Unknown packet code." );
             break;
         }
     }
@@ -225,7 +221,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 void callback_disc(conn_id_t conn_id) {
     //supermap.removeConnection(conn_id);
 	msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
-	ZF_LOGDN("Connection or Device removed with conn_id=%u + ...", conn_id);
+	ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
 	msu.log();
 }
 
@@ -252,6 +248,8 @@ void print_help(char *argv[])
 
 }
 
+ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
+
 int main(int argc, char *argv[])
 {
     if (argc < 2) 
@@ -267,16 +265,18 @@ int main(int argc, char *argv[])
         return res;
     }
 
+	zf_log_set_output_level(ZF_LOG_WARN);
+
 	if (argc > 2)
 	{
 		if (strcmp(argv[2], "debug") == 0)
 		{
-			log_yes = true;
+			zf_log_set_output_level(ZF_LOG_DEBUG);
 		}
 
 	}
 
-    bindy::Bindy bindy(argv[1], true, false, log_yes);
+    bindy::Bindy bindy(argv[1], true, false);
     pb = &bindy;
 	
 	/* no supervisor at all*/
@@ -303,11 +303,11 @@ int main(int argc, char *argv[])
     }
     #endif
 
-    ZF_LOGIN("Starting server...");
+    ZF_LOGI("Starting server...");
     bindy.connect();
     bindy.set_handler(&callback_data);
     bindy.set_discnotify(&callback_disc);
 
-    //ZF_LOGIN("Server stopped.");
+    //ZF_LOGI("Server stopped.");
     return 0;
 }

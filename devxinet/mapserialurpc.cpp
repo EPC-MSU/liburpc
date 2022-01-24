@@ -59,16 +59,16 @@ void MapSerialUrpc::log()
 {
 	_rwlock.read_lock();
 
-	ZF_LOGDN("MapSerialUrpc:");
+	ZF_LOGD("MapSerialUrpc:");
 	for (auto &m : *this)
 	{
-		ZF_LOGDN("serial_%u -> (urpc ptr %u; mutex ptr %u\n", m.first, m.second.uhandle(), m.second.pmutex());
+		ZF_LOGD("serial_%u -> (urpc ptr %u; mutex ptr %u\n", m.first, m.second.uhandle(), m.second.pmutex());
 	}
 
-	ZF_LOGDN("MapSerialUrpc connections pairs:");
+	ZF_LOGD("MapSerialUrpc connections pairs:");
 	for (auto &m : _conns)
 	{
-		ZF_LOGDN("conn_id %u - serial %u\n", m.first, m.second);
+		ZF_LOGD("conn_id %u - serial %u\n", m.first, m.second);
 	}
 
 	_rwlock.read_unlock();
