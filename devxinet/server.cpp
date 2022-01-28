@@ -238,13 +238,18 @@ void print_help(char *argv[])
         << argv[0] << " ~/keyfile.sqlite" << std::endl
         << argv[0] << " ~/keyfile.sqlite debug" << std::endl
         << "Debug logging will be disabled by default" << std::endl;
-
 }
 
 ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
 
 int main(int argc, char *argv[])
 {
+    std::cout << "=== uRPC XiNet Server "
+              << URPC_XINET_VERSION_MAJOR << "."
+              << URPC_XINET_VERSION_MINOR << "."
+              << URPC_XINET_VERSION_BUGFIX << " "
+              << "===" << std::endl;
+
     if (argc < 2) 
     {
         print_help(argv);
