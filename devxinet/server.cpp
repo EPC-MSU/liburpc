@@ -4,6 +4,14 @@
 #include <map>
 #include <mutex>
 #include <iostream>
+#include <algorithm>
+#include <functional>
+
+/*
+ * Supervisor option.
+ * It may not work properly on windows now.
+ */
+// #define ENABLE_SUPERVISOR
 
 #include <zf_log.h>
 
@@ -12,6 +20,7 @@
 #include "bindy/tinythread.h"
 #include "common.hpp"
 #include "platform.h"
+#include "mapserialurpc.h"
 
 #ifdef ENABLE_SUPERVISOR
 #include "supervisor.hpp"
@@ -25,156 +34,12 @@ bindy::Bindy * pb = NULL;
 
 #define SEND_WAIT_TIMEOUT_MS 5000
 
-
-class Device {
-public:
-    static Device * create(conn_id_t conn_id, uint32_t serial);
-
-    ~Device();
-
-    conn_id_t conn_id;
-    uint32_t serial;
-    urpc_device_handle_t handle;
-private:
-    Device(conn_id_t conn_id, uint32_t serial, urpc_device_handle_t handle);
-
-    Device(const Device & other); // please do not copy Device class, it makes no sense
-    Device & operator=(const Device & other); // do not assign it either
-};
-
-// All thread-safe locks happen inside Supermap; Device class doesn't know about it
-// static
-Device * Device::create(conn_id_t conn_id, uint32_t serial) {
-    const std::string addr = serial_to_address(serial);
-    ZF_LOGI("Open device %s for %u...", addr.c_str(), conn_id);
-    urpc_device_handle_t handle = urpc_device_create(addr.c_str());
-    if (handle == nullptr) {
-        ZF_LOGE("Can\'t open device %s for %u.", addr.c_str(), conn_id);
-        return nullptr;
-    }
-
-    Device *device = new(std::nothrow) Device(conn_id, serial, handle);
-    if (device == nullptr) {
-        if (urpc_device_destroy(&handle) != urpc_result_ok) {
-            ZF_LOGE("Can not destroy opened device %s for %u.", addr.c_str(), conn_id);
-        }
-    }
-
-    return device;
-}
-
-Device::~Device() {
-    // close the device
-    urpc_device_destroy(&this->handle);
-}
-
-Device::Device(conn_id_t conn_id, uint32_t serial, urpc_device_handle_t handle):
-    conn_id(conn_id), serial(serial), handle(handle)
-{}
-
-
-class Supermap {
-public:
-    Device* findDevice(conn_id_t conn_id, uint32_t serial);
-    bool addDevice(conn_id_t conn_id, uint32_t serial);
-    void removeDevice(conn_id_t conn_id, uint32_t serial);
-    void removeConnection(conn_id_t conn_id);
-
-private:
-    std::map<conn_id_t, std::map<uint32_t, Device*> > devices_by_connection;    // connection -> serial -> device ptr
-    std::map<uint32_t, std::pair<Device*, int>> devices_by_serial;  // serial -> (device ptr, users)
-    tthread::mutex map_mutex;
-};
-
-Device* Supermap::findDevice(conn_id_t conn_id, uint32_t serial) {
-    std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
-    Device* ptr = nullptr;
-    if (devices_by_connection.count(conn_id) > 0 && devices_by_connection.at(conn_id).count(serial) > 0) {
-        ptr = devices_by_connection.at(conn_id).at(serial);
-    }
-
-    return ptr;
-}
-
-// returns true if addition was successful, or device already exists and available; otherwise returns false
-bool Supermap::addDevice(conn_id_t conn_id, uint32_t serial) {
-    bool device_opened = false;
-
-    std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
-    if (devices_by_connection[conn_id].count(serial) > 0) {  // Check if device already opened
-        ZF_LOGD("Device with serial %lX already opened (for %u).", serial, conn_id);
-        device_opened = true;
-    } else if (devices_by_serial.count(serial) > 0) {           // Use previously opened by other user shared device
-        ZF_LOGD("Use previously opened device with serial %lX (for %u).", serial, conn_id);
-        auto &p = devices_by_serial.at(serial);
-        ++p.second;
-        devices_by_connection.at(conn_id)[serial] = p.first;
-        device_opened = true;
-    } else {                                           // Open new device
-        ZF_LOGD("Open new device with serial %lX for %u...", serial, conn_id);
-
-        try {
-            Device *d = Device::create(conn_id, serial);
-            if (d != nullptr) {
-                devices_by_serial.insert(std::make_pair(serial, std::make_pair(d, 1)));
-                devices_by_connection[conn_id][serial] = d;
-                device_opened = true;
-            }
-        } catch (const std::exception &e) {
-            ZF_LOGE("Can\'t open device with serial: %u: %s.", serial, e.what());
-        }
-    }
-
-    return device_opened;
-}
-
-void Supermap::removeDevice(conn_id_t conn_id, uint32_t serial) {
-    std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
-    if (devices_by_connection.count(conn_id) > 0) {
-        if (devices_by_connection[conn_id].count(serial) > 0) {
-            devices_by_connection[conn_id].erase(serial);
-
-            auto &p = devices_by_serial.at(serial);
-            if (p.second <= 1) {
-                delete p.first;
-                devices_by_serial.erase(serial);
-            } else {
-                --p.second;
-            }
-        }
-    }
-}
-
-void Supermap::removeConnection(conn_id_t conn_id) {
-    std::lock_guard<tthread::mutex> map_lock(map_mutex);
-
-    if (devices_by_connection.count(conn_id) > 0) {
-        for (auto &serial_device_p: devices_by_connection.at(conn_id)) {
-            auto &p = devices_by_serial.at(serial_device_p.first);
-            if (p.second <= 1) {
-                delete p.first;
-                devices_by_serial.erase(serial_device_p.first);
-            } else {
-                --p.second;
-            }
-        }
-
-        devices_by_connection.erase(conn_id);
-    }
-}
-
-
-Supermap supermap;
-
+MapSerialUrpc msu;
 
 class CommonDataPacket {
 public:
     bool send_data() {
         if (pb == NULL) {
-            //ZF_LOGD( "pb == NULL in send_data()" );
             return false;
         }
         try {
@@ -231,7 +96,7 @@ public:
 template <>
 class DataPacket <URPC_COMMAND_RESPONSE_PACKET_TYPE> : public CommonDataPacket {
 public:
-    DataPacket(conn_id_t conn_id, uint32_t serial, urpc_result_t result, uint8_t* ptr, uint32_t size) {
+    DataPacket(conn_id_t conn_id, uint32_t serial, urpc_result_t result, uint8_t *ptr, uint32_t size) {
         this->conn_id = conn_id;
 
         int len = sizeof(urpc_xinet_common_header_t) + sizeof(result) + size;
@@ -246,7 +111,6 @@ public:
     }
 };
 
-
 // ========================================================
 void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
     ZF_LOGD("From %u received packet of length: %lu.", conn_id, data.size());
@@ -256,6 +120,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
         throw std::runtime_error( "Incorrect data packet" );
     }
 
+    bool added;
     uint32_t protocol_ver;
     uint32_t command_code;
     uint32_t serial;
@@ -280,12 +145,6 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
         case URPC_COMMAND_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received command request packet.", conn_id );
 
-            Device * d = supermap.findDevice(conn_id, serial);
-            if(d == NULL) {
-//                //ZF_LOGD( "conn_id = " << conn_id << ", serial = " << std::to_string(serial) );
-                ZF_LOGE( "Request by %d for raw data to not opened serial, aborting...", conn_id );
-                throw std::runtime_error( "Serial not opened" );
-            }
             char cid[URPC_CID_SIZE];
             std::memcpy(cid, &data[sizeof(urpc_xinet_common_header_t)], sizeof(cid));
 
@@ -296,36 +155,51 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             request_len = data.size() - sizeof(urpc_xinet_common_header_t) - sizeof(cid) - sizeof(response_len);
             std::vector<uint8_t> response(response_len);
 
-            urpc_result_t result = urpc_device_send_request(
-                    d->handle,
-                    cid, 
-                    request_len ? &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)] : NULL, 
+            urpc_result_t result = urpc_result_nodevice;
+
+            if (msu.is_opened_and_valid(serial))
+            {
+                result = msu.operation_urpc_send_request(
+                    serial,
+                    cid,
+                    request_len ? &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)] : NULL,
                     request_len,
-                    response.data(), 
+                    response.data(),
                     response_len
-            );
+                );
+            }
+            else
+            {
+                ZF_LOGE("Request by %d for raw data to not opened or invalid serial, aborting...", conn_id);
+            }
 
             DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
-                    response_packet(conn_id, d->serial, result, response.data(), response_len);
+                    response_packet(conn_id, serial, result, response.data(), response_len);
             if (!response_packet.send_data() || result == urpc_result_nodevice) {
-                ZF_LOGE( "To %u command response packet sending error.", conn_id );
-                supermap.removeConnection(conn_id);
+                ZF_LOGE("To %u command response not sent.", conn_id);
             } else {
-                ZF_LOGD( "To %u command response packet sent.", conn_id );
+                ZF_LOGD("To %u command response packet sent.", conn_id);
             }
             break;
         }
         case URPC_OPEN_DEVICE_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received open device request packet.", conn_id );
+            msu.log();
 
-            DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE>
-                    response_packet(conn_id, serial, supermap.addDevice(conn_id, serial));
+            added = msu.open_if_not(conn_id, serial);
+            DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE> response_packet(conn_id, serial, added);
+
             if (!response_packet.send_data()) {
-                ZF_LOGE( "To %u open device response packet sending error.", conn_id );
-                supermap.removeConnection(conn_id);
+                ZF_LOGE("To %u open device response packet sending error.", conn_id);
             } else {
-                ZF_LOGD( "To %u open device response packet sent.", conn_id );
+                ZF_LOGD("To %u open device response packet sent.", conn_id);
             }
+
+            if (added)
+            {
+                ZF_LOGD("New connection added conn_id=%u + ...", conn_id);
+            }
+            msu.log();
             break;
         }
         case URPC_CLOSE_DEVICE_REQUEST_PACKET_TYPE: {
@@ -334,9 +208,12 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             DataPacket<URPC_CLOSE_DEVICE_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial);
             response_packet.send_data();
-            ZF_LOGD( "To %u close device response packet sent.", conn_id );
+            ZF_LOGD( "To connection %u close device response packet sent.", conn_id);
 
-            supermap.removeDevice(conn_id, serial);
+            // We don’t try to close the device here.
+            // It will be closed in the callback_disc() function after the thread termination.
+            // Force socket thread final becouse of this exception.
+            throw std::runtime_error("Stopping socket_thread");
             break;
         }
         default: {
@@ -348,26 +225,35 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 // ========================================================
 
 void callback_disc(conn_id_t conn_id) {
-    supermap.removeConnection(conn_id);
+    msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
+    ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
+    msu.log();
 }
 
 void print_help(char *argv[])
 {
-    std::cout << "Usage: " << argv[0] << " keyfile [{disable_supervisor/enable_supervisor}] [supervisor_limit]"
-              << std::endl
-              << "Examples: " << std::endl
-              << argv[0] << " ~/keyfile.sqlite" << std::endl
-              << argv[0] << " ~/keyfile.sqlite enable_supervisor" << std::endl
-              << argv[0] << " ~/keyfile.sqlite disable_supervisor" << std::endl
-              << argv[0] << " ~/keyfile.sqlite enable_supervisor 30" << std::endl
-              << "Supervisor will be enabled by default" << std::endl;
+    std::cout << "Usage: " << argv[0] << " keyfile [debug]"
+        << std::endl
+        << "Examples: " << std::endl
+        << argv[0] << " ~/keyfile.sqlite" << std::endl
+        << argv[0] << " ~/keyfile.sqlite debug" << std::endl
+        << "Debug logging will be disabled by default" << std::endl;
 }
+
+ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
 
 int main(int argc, char *argv[])
 {
+    std::cout << "=== uRPC XiNet Server "
+              << URPC_XINET_VERSION_MAJOR << "."
+              << URPC_XINET_VERSION_MINOR << "."
+              << URPC_XINET_VERSION_BUGFIX << " "
+              << "===" << std::endl;
+
     if (argc < 2) 
     {
         print_help(argv);
+        std::cin.get(); // To avoid console closing
         return 0;
     }
 
@@ -375,6 +261,17 @@ int main(int argc, char *argv[])
     if (res)
     {
         return res;
+    }
+
+    zf_log_set_output_level(ZF_LOG_WARN);
+
+    if (argc > 2)
+    {
+        if (strcmp(argv[2], "debug") == 0)
+        {
+            zf_log_set_output_level(ZF_LOG_DEBUG);
+        }
+
     }
 
     bindy::Bindy bindy(argv[1], true, false);
@@ -404,10 +301,13 @@ int main(int argc, char *argv[])
     #endif
 
     ZF_LOGI("Starting server...");
+
     bindy.connect();
     bindy.set_handler(&callback_data);
     bindy.set_discnotify(&callback_disc);
 
+    // It seems in the current version we will never end up here.
     ZF_LOGI("Server stopped.");
+
     return 0;
 }
