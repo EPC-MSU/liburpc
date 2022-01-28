@@ -7,7 +7,11 @@
 #include <algorithm>
 #include <functional>
 
-//#define ENABLE_SUPERVISOR
+/*
+ * Supervisor option.
+ * It may not work properly on windows now.
+ */ 
+// #define ENABLE_SUPERVISOR
 
 #include <zf_log.h>
 
@@ -116,7 +120,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
         throw std::runtime_error( "Incorrect data packet" );
     }
 
-	bool added;
+    bool added;
     uint32_t protocol_ver;
     uint32_t command_code;
     uint32_t serial;
@@ -141,57 +145,53 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
         case URPC_COMMAND_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received command request packet.", conn_id );
             //Device * d = supermap.findDevice(conn_id, serial);
-			char cid[URPC_CID_SIZE];
-			std::memcpy(cid, &data[sizeof(urpc_xinet_common_header_t)], sizeof(cid));
+            char cid[URPC_CID_SIZE];
+            std::memcpy(cid, &data[sizeof(urpc_xinet_common_header_t)], sizeof(cid));
 
-			uint32_t response_len;
-			read_uint32(&response_len, &data[sizeof(urpc_xinet_common_header_t)+sizeof(cid)]);
+            uint32_t response_len;
+            read_uint32(&response_len, &data[sizeof(urpc_xinet_common_header_t)+sizeof(cid)]);
 
-			unsigned long int request_len;
-			request_len = data.size() - sizeof(urpc_xinet_common_header_t)-sizeof(cid)-sizeof(response_len);
-			std::vector<uint8_t> response(response_len);
+            unsigned long int request_len;
+            request_len = data.size() - sizeof(urpc_xinet_common_header_t)-sizeof(cid)-sizeof(response_len);
+            std::vector<uint8_t> response(response_len);
 
-			urpc_result_t result = urpc_result_nodevice;
+            urpc_result_t result = urpc_result_nodevice;
 
-			if (!msu.is_opened_and_valid(serial))
-				ZF_LOGE("Request by %d for raw data to not opened or invalid serial , aborting...", conn_id);
-			    //throw std::runtime_error( "Serial not opened or invalid" );
-			else
-			    result = msu.operation_urpc_send_request(
-					//d->handle,
-					//d_p.first, 
-					serial,
-					cid,
-					request_len ? &data[sizeof(urpc_xinet_common_header_t)+sizeof(cid)+sizeof(response_len)] : NULL,
-					request_len,
-					response.data(),
-					response_len
-					);
-			
-			DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
+            if (!msu.is_opened_and_valid(serial))
+                ZF_LOGE("Request by %d for raw data to not opened or invalid serial, aborting...", conn_id);
+                //throw std::runtime_error( "Serial not opened or invalid" );
+            else
+                result = msu.operation_urpc_send_request(
+                    serial,
+                    cid,
+                    request_len ? &data[sizeof(urpc_xinet_common_header_t)+sizeof(cid)+sizeof(response_len)] : NULL,
+                    request_len,
+                    response.data(),
+                    response_len
+                    );
+
+            DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, /*d->serial*/ serial, result, response.data(), response_len);
-			if (!response_packet.send_data() || result == urpc_result_nodevice) {
+            if (!response_packet.send_data() || result == urpc_result_nodevice) {
                 ZF_LOGE( "To %u command response not sent.", conn_id );
-			 				
             } else {
                 ZF_LOGD( "To %u command response packet sent.", conn_id );
             }
-			break;
+            break;
         }
         case URPC_OPEN_DEVICE_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received open device request packet.", conn_id );
-			msu.log();
+            msu.log();
             DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial, //supermap.addDevice(conn_id, serial)
-					                                    added=msu.open_if_not(conn_id, serial));
+                                                        added=msu.open_if_not(conn_id, serial));
             if (!response_packet.send_data()) {
                 ZF_LOGE( "To %u open device response packet sending error.", conn_id );
-		        
-		    } else {
+            } else {
                 ZF_LOGD( "To %u open device response packet sent.", conn_id );
             }
-			if (added) ZF_LOGD("New connection added conn_id=%u + ...", conn_id);
-			msu.log();
+            if (added) ZF_LOGD("New connection added conn_id=%u + ...", conn_id);
+            msu.log();
             break;
         }
         case URPC_CLOSE_DEVICE_REQUEST_PACKET_TYPE: {
@@ -201,13 +201,13 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                     response_packet(conn_id, serial);
             response_packet.send_data();
             ZF_LOGD( "To connection %u close device response packet sent.", conn_id );
-			
-			//msu.decrement_conn_or_remove_urpc_device(conn_id, serial, false);
-            
-			//ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
-			//msu.print_msu();
-			// force socket thread final becouse of this exception
-			throw std::runtime_error("Stopping socket_thread");
+
+            //msu.decrement_conn_or_remove_urpc_device(conn_id, serial, false);
+
+            //ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
+            //msu.print_msu();
+            //force socket thread final becouse of this exception
+            throw std::runtime_error("Stopping socket_thread");
             break;
         }
         default: {
@@ -220,16 +220,16 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
 void callback_disc(conn_id_t conn_id) {
     //supermap.removeConnection(conn_id);
-	msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
-	ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
-	msu.log();
+    msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
+    ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
+    msu.log();
 }
 
 void print_help(char *argv[])
 {
     /*
-	no supervisor no at all
-	std::cout << "Usage: " << argv[0] << " keyfile [{disable_supervisor/enable_supervisor}] [supervisor_limit]"
+    no supervisor no at all
+    std::cout << "Usage: " << argv[0] << " keyfile [{disable_supervisor/enable_supervisor}] [supervisor_limit]"
               << std::endl
               << "Examples: " << std::endl
               << argv[0] << " ~/keyfile.sqlite" << std::endl
@@ -239,12 +239,12 @@ void print_help(char *argv[])
               << "Supervisor will be enabled by default" << std::endl;
   */
 
-	std::cout << "Usage: " << argv[0] << " keyfile [debug]"
-		<< std::endl
-		<< "Examples: " << std::endl
-		<< argv[0] << " ~/keyfile.sqlite" << std::endl
-		<< argv[0] << " ~/keyfile.sqlite debug" << std::endl
-		<< "Debug logging will be disabled by default" << std::endl;
+    std::cout << "Usage: " << argv[0] << " keyfile [debug]"
+        << std::endl
+        << "Examples: " << std::endl
+        << argv[0] << " ~/keyfile.sqlite" << std::endl
+        << argv[0] << " ~/keyfile.sqlite debug" << std::endl
+        << "Debug logging will be disabled by default" << std::endl;
 
 }
 
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
     if (argc < 2) 
     {
         print_help(argv);
-		std::cin.get();
+        std::cin.get();
         return 0;
     }
 
@@ -265,21 +265,20 @@ int main(int argc, char *argv[])
         return res;
     }
 
-	zf_log_set_output_level(ZF_LOG_WARN);
+    zf_log_set_output_level(ZF_LOG_WARN);
 
-	if (argc > 2)
-	{
-		if (strcmp(argv[2], "debug") == 0)
-		{
-			zf_log_set_output_level(ZF_LOG_DEBUG);
-		}
+    if (argc > 2)
+    {
+        if (strcmp(argv[2], "debug") == 0)
+        {
+            zf_log_set_output_level(ZF_LOG_DEBUG);
+        }
 
-	}
+    }
 
     bindy::Bindy bindy(argv[1], true, false);
     pb = &bindy;
-	
-	/* no supervisor at all*/
+    
     #ifdef ENABLE_SUPERVISOR
     if (argc > 2) 
     {
@@ -304,10 +303,13 @@ int main(int argc, char *argv[])
     #endif
 
     ZF_LOGI("Starting server...");
+
     bindy.connect();
     bindy.set_handler(&callback_data);
     bindy.set_discnotify(&callback_disc);
 
-    //ZF_LOGI("Server stopped.");
+    // It seems in the current version we will never 
+    ZF_LOGI("Server stopped.");
+
     return 0;
 }
