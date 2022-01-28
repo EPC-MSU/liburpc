@@ -20,8 +20,8 @@ urpc_device_handle_t UrpcDevicePHandleGuard::create_urpc_h(uint32_t serial, std:
 }
 
 /*
-* Executes urpc request operation.
-*/
+ * Executes urpc request operation.
+ */
 urpc_result_t UrpcDevicePHandleGuard::urpc_send_request(const char cid[URPC_CID_SIZE],
     const uint8_t *request,
     uint8_t request_len,
@@ -83,7 +83,6 @@ MapSerialUrpc::~MapSerialUrpc()
     }
 }
 
-
 static bool _find_conn(const conn_serial &item, conn_id_t conn_id)
 {
     return item.first == conn_id;
@@ -131,7 +130,7 @@ bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
         _rwlock.write_unlock();
     }
 
-    /* 
+    /*
      * read lock is off
      * not created, create now
      */
@@ -185,7 +184,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
 
     if (conn_id != UINT32_MAX)   // conn_id is known
     {
-        // first,  find and remove_connection
+        // first, find and remove_connection
         _rwlock.write_lock();
 
         std::list<conn_serial>::const_iterator it;

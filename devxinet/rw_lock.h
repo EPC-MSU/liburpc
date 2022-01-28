@@ -3,8 +3,8 @@
 #include <mutex>
 
 /*
-* A write-preference Read-Write lock - taken from https://github.com/bo-yang/read_write_lock
-*/
+ * A write-preference Read-Write lock - taken from https://github.com/bo-yang/read_write_lock
+ */
 class ReadWriteLock {
 public:
     ReadWriteLock() {

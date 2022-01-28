@@ -10,7 +10,7 @@
 /*
  * Supervisor option.
  * It may not work properly on windows now.
- */ 
+ */
 // #define ENABLE_SUPERVISOR
 
 #include <zf_log.h>
@@ -144,53 +144,61 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
     switch (command_code) {
         case URPC_COMMAND_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received command request packet.", conn_id );
-            //Device * d = supermap.findDevice(conn_id, serial);
+
             char cid[URPC_CID_SIZE];
             std::memcpy(cid, &data[sizeof(urpc_xinet_common_header_t)], sizeof(cid));
 
             uint32_t response_len;
-            read_uint32(&response_len, &data[sizeof(urpc_xinet_common_header_t)+sizeof(cid)]);
+            read_uint32(&response_len, &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid)]);
 
             unsigned long int request_len;
-            request_len = data.size() - sizeof(urpc_xinet_common_header_t)-sizeof(cid)-sizeof(response_len);
+            request_len = data.size() - sizeof(urpc_xinet_common_header_t) - sizeof(cid) - sizeof(response_len);
             std::vector<uint8_t> response(response_len);
 
             urpc_result_t result = urpc_result_nodevice;
 
-            if (!msu.is_opened_and_valid(serial))
-                ZF_LOGE("Request by %d for raw data to not opened or invalid serial, aborting...", conn_id);
-                //throw std::runtime_error( "Serial not opened or invalid" );
-            else
+            if (msu.is_opened_and_valid(serial))
+            {
                 result = msu.operation_urpc_send_request(
                     serial,
                     cid,
-                    request_len ? &data[sizeof(urpc_xinet_common_header_t)+sizeof(cid)+sizeof(response_len)] : NULL,
+                    request_len ? &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)] : NULL,
                     request_len,
                     response.data(),
                     response_len
-                    );
+                );
+            }
+            else
+            {
+                ZF_LOGE("Request by %d for raw data to not opened or invalid serial, aborting...", conn_id);
+            }
 
             DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
-                    response_packet(conn_id, /*d->serial*/ serial, result, response.data(), response_len);
+                    response_packet(conn_id, serial, result, response.data(), response_len);
             if (!response_packet.send_data() || result == urpc_result_nodevice) {
-                ZF_LOGE( "To %u command response not sent.", conn_id );
+                ZF_LOGE("To %u command response not sent.", conn_id);
             } else {
-                ZF_LOGD( "To %u command response packet sent.", conn_id );
+                ZF_LOGD("To %u command response packet sent.", conn_id);
             }
             break;
         }
         case URPC_OPEN_DEVICE_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received open device request packet.", conn_id );
             msu.log();
-            DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE>
-                    response_packet(conn_id, serial, //supermap.addDevice(conn_id, serial)
-                                                        added=msu.open_if_not(conn_id, serial));
+
+            added = msu.open_if_not(conn_id, serial);
+            DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE> response_packet(conn_id, serial, added);
+
             if (!response_packet.send_data()) {
-                ZF_LOGE( "To %u open device response packet sending error.", conn_id );
+                ZF_LOGE("To %u open device response packet sending error.", conn_id);
             } else {
-                ZF_LOGD( "To %u open device response packet sent.", conn_id );
+                ZF_LOGD("To %u open device response packet sent.", conn_id);
             }
-            if (added) ZF_LOGD("New connection added conn_id=%u + ...", conn_id);
+
+            if (added)
+            {
+                ZF_LOGD("New connection added conn_id=%u + ...", conn_id);
+            }
             msu.log();
             break;
         }
@@ -200,13 +208,11 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             DataPacket<URPC_CLOSE_DEVICE_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial);
             response_packet.send_data();
-            ZF_LOGD( "To connection %u close device response packet sent.", conn_id );
+            ZF_LOGD( "To connection %u close device response packet sent.", conn_id);
 
-            //msu.decrement_conn_or_remove_urpc_device(conn_id, serial, false);
-
-            //ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
-            //msu.print_msu();
-            //force socket thread final becouse of this exception
+            // We don’t try to close the device here.
+            // It will be closed in the callback_disc() function after the thread termination.
+            // Force socket thread final becouse of this exception.
             throw std::runtime_error("Stopping socket_thread");
             break;
         }
@@ -219,7 +225,6 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 // ========================================================
 
 void callback_disc(conn_id_t conn_id) {
-    //supermap.removeConnection(conn_id);
     msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
     ZF_LOGD("Connection or Device removed with conn_id=%u + ...", conn_id);
     msu.log();
@@ -227,18 +232,6 @@ void callback_disc(conn_id_t conn_id) {
 
 void print_help(char *argv[])
 {
-    /*
-    no supervisor no at all
-    std::cout << "Usage: " << argv[0] << " keyfile [{disable_supervisor/enable_supervisor}] [supervisor_limit]"
-              << std::endl
-              << "Examples: " << std::endl
-              << argv[0] << " ~/keyfile.sqlite" << std::endl
-              << argv[0] << " ~/keyfile.sqlite enable_supervisor" << std::endl
-              << argv[0] << " ~/keyfile.sqlite disable_supervisor" << std::endl
-              << argv[0] << " ~/keyfile.sqlite enable_supervisor 30" << std::endl
-              << "Supervisor will be enabled by default" << std::endl;
-  */
-
     std::cout << "Usage: " << argv[0] << " keyfile [debug]"
         << std::endl
         << "Examples: " << std::endl
@@ -255,7 +248,7 @@ int main(int argc, char *argv[])
     if (argc < 2) 
     {
         print_help(argv);
-        std::cin.get();
+        std::cin.get(); // To avoid console closing
         return 0;
     }
 
@@ -278,7 +271,7 @@ int main(int argc, char *argv[])
 
     bindy::Bindy bindy(argv[1], true, false);
     pb = &bindy;
-    
+
     #ifdef ENABLE_SUPERVISOR
     if (argc > 2) 
     {
@@ -308,7 +301,7 @@ int main(int argc, char *argv[])
     bindy.set_handler(&callback_data);
     bindy.set_discnotify(&callback_disc);
 
-    // It seems in the current version we will never 
+    // It seems in the current version we will never end up here.
     ZF_LOGI("Server stopped.");
 
     return 0;
