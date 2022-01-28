@@ -31,8 +31,9 @@ public:
 
     std::mutex *pmutex() const { return _pmutex; }
     urpc_device_handle_t uhandle() const { return _uhandle; }
+
     /*
-     * Destroys urpc device? must be call before destrou_mutex()
+     * Destroys urpc device, must be call before destrou_mutex()
      */
     void destroy_urpc_h();
     void destroy_mutex();
@@ -74,11 +75,13 @@ class MapSerialUrpc : public
 public:
     MapSerialUrpc(){};
     ~MapSerialUrpc();
+
     /*
      * Checks if the connection and serial has been already opened.
      * Opens if has not.
      */
     bool open_if_not(conn_id_t conn_id, uint32_t serial);
+
     /*
      * Executes urpc request operation.
      */
@@ -106,6 +109,7 @@ public:
     void log();
 private:
     ReadWriteLock _rwlock;
+
     // spy for tcp-connections
     std::list<conn_serial> _conns;
 };
