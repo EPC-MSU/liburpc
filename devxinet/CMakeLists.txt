@@ -5,6 +5,8 @@ if (WIN32)
   set(ENABLE_SUPERVISOR OFF CACHE INTERNAL "")
 endif()
 
+add_definitions( -DZF_LOG_LEVEL=ZF_LOG_DEBUG )
+
 macro(use_cxx11)
   if (CMAKE_VERSION VERSION_LESS "3.1")
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
