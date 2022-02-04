@@ -232,12 +232,21 @@ void callback_disc(conn_id_t conn_id) {
 
 void print_help(char *argv[])
 {
+
+
+#if ZF_LOG_LEVEL <= ZF_LOG_DEBUG
     std::cout << "Usage: " << argv[0] << " keyfile [debug]"
         << std::endl
         << "Examples: " << std::endl
         << argv[0] << " ~/keyfile.sqlite" << std::endl
         << argv[0] << " ~/keyfile.sqlite debug" << std::endl
         << "Debug logging will be disabled by default" << std::endl;
+#else
+	std::cout << "Usage: " << argv[0] << " keyfile"
+		<< std::endl
+		<< "Examples: " << std::endl
+		<< argv[0] << " ~/keyfile.sqlite" << std::endl;
+#endif
 }
 
 ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
@@ -306,8 +315,5 @@ int main(int argc, char *argv[])
     bindy.set_handler(&callback_data);
     bindy.set_discnotify(&callback_disc);
 
-    // It seems in the current version we will never end up here.
-    ZF_LOGI("Server stopped.");
-
-    return 0;
+      return 0;
 }
