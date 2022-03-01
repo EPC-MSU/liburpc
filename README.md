@@ -44,7 +44,7 @@ make -j$(nproc)
 
 Запуск:
 ```shell
-./urpc-xinet-server <путь_до_keyfile.sqlite> 
+./urpc_xinet_server <путь_до_keyfile.sqlite> 
 ```
 Для запуска сервера требуются права на доступ к последовательным портам в директории `/dev`
 (пользователь должен входить в группу `dialout` или быть `root`).
