@@ -328,13 +328,7 @@ public:
             {
                 throw DeviceLost("");
             }
-			/**
-            else
-            {
-                throw std::runtime_error("");
-            }
-			*/
-        }
+		}
         ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "request to device with serial %" PRIX32 " has been successfully executed!", serial);
 		return (urpc_result_t)status;
     }
@@ -388,7 +382,6 @@ urpc_device_xinet_send_request(
     try
     {
         return device->send_request(request_cid, request, request_len, response, response_len);
-        //return urpc_result_ok;
     }
     catch(const DeviceLost &)
     {
