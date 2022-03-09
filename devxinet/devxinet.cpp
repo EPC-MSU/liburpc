@@ -328,9 +328,9 @@ public:
             {
                 throw DeviceLost("");
             }
-		}
+        }
         ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "request to device with serial %" PRIX32 " has been successfully executed!", serial);
-		return (urpc_result_t)status;
+        return (urpc_result_t)status;
     }
 
     ~urpc_device_xinet_t()
@@ -346,9 +346,8 @@ public:
 };
 
 
-struct urpc_device_xinet_t *
-urpc_device_xinet_create(
-        const char *host, const char *path
+struct urpc_device_xinet_t * urpc_device_xinet_create(
+    const char *host, const char *path
 ){
     unsigned long serial = strtoul(path, nullptr, 16);
 
@@ -369,14 +368,13 @@ urpc_device_xinet_create(
 }
 
 
-urpc_result_t
-urpc_device_xinet_send_request(
-        struct urpc_device_xinet_t *device,
-        const char request_cid[URPC_CID_SIZE],
-        const uint8_t *request,
-        uint8_t request_len,
-        uint8_t *response,
-        uint8_t response_len
+urpc_result_t urpc_device_xinet_send_request(
+    struct urpc_device_xinet_t *device,
+    const char request_cid[URPC_CID_SIZE],
+    const uint8_t *request,
+    uint8_t request_len,
+    uint8_t *response,
+    uint8_t response_len
 )
 {
     try
@@ -394,9 +392,8 @@ urpc_device_xinet_send_request(
 }
 
 
-urpc_result_t
-urpc_device_xinet_destroy(
-        struct urpc_device_xinet_t **device_ptr
+urpc_result_t urpc_device_xinet_destroy(
+    struct urpc_device_xinet_t **device_ptr
 )
 {
     assert(device_ptr != nullptr);
