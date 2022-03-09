@@ -118,18 +118,16 @@ bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
         _rwlock.write_unlock();
         return true;
     }
-    else
-    {
-        /*
-         * pmutex must be created first and guard creation also
-         */
-        if (find(serial) == cend())
-        {
-            (*this)[serial].create_mutex(); // new map element also created and inserted
-        }
-        _rwlock.write_unlock();
-    }
-
+   
+    /*
+    * pmutex must be created first and guard creation also
+    */
+	if (find(serial) == cend())
+	{
+		(*this)[serial].create_mutex(); // new map element also created and inserted
+	}
+     _rwlock.write_unlock();
+  
     /*
      * read lock is off
      * not created, create now
@@ -202,26 +200,21 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
 
     _rwlock.read_lock();
 
-    if (find(serial) != cend())
-    {
-        UrpcDevicePHandleGuard &uh = (*this)[serial];
-        if ((force_urpc_remove == true) ||
-            std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial)) ==
-            _conns.cend())
+	if (find(serial) != cend())
+	{
+		UrpcDevicePHandleGuard &uh = (*this)[serial];
+		if ((force_urpc_remove == true) ||
+			std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial)) ==
+			_conns.cend())
 
-        {
-            destroy_serial = true;
-            _rwlock.read_unlock();
-            uh.destroy_urpc_h();
-        }
-        else
-            _rwlock.read_unlock();
-    }
-    else
-    {
-        _rwlock.read_unlock();
-    }
-
+		{
+			destroy_serial = true;
+			_rwlock.read_unlock();
+			uh.destroy_urpc_h();
+		}
+	}
+    _rwlock.read_unlock();
+ 
     if (!destroy_serial)  return;
     _rwlock.write_lock();
     if (find(serial) != cend())
