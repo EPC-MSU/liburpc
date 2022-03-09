@@ -315,5 +315,5 @@ int main(int argc, char *argv[])
     bindy.set_handler(&callback_data);
     bindy.set_discnotify(&callback_disc);
 
-      return 0;
+    return 0;
 }
