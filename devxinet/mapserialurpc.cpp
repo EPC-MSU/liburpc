@@ -216,8 +216,10 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
             uh.destroy_urpc_h();
         }
     }
-    _rwlock.read_unlock();
-
+	else
+	{
+		_rwlock.read_unlock();
+	}
     if (!destroy_serial)  return;
     _rwlock.write_lock();
 
