@@ -7,10 +7,10 @@
 #include <algorithm>
 #include <functional>
 
-///
-#include <execinfo.h>
-#include <signal.h>
-///
+#if not defined(WIN32) && not defined(WIN64)
+  #include <execinfo.h>
+  #include <signal.h>
+#endif
 
 /*
  * Supervisor option.
@@ -254,7 +254,7 @@ void print_help(char *argv[])
 #endif
 }
 
-///
+#if not defined(WIN32) && not defined(WIN64)
 void handler(int sig) {
   void *array[10];
   size_t size;
@@ -267,15 +267,15 @@ void handler(int sig) {
   backtrace_symbols_fd(array, size, STDERR_FILENO);
   exit(1);
 }
-///
+#endif
 
 ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
 
 int main(int argc, char *argv[])
 {
-    ///
+#if not defined(WIN32) && not defined(WIN64)
     signal(SIGSEGV, handler);   // install our handler  
-    ///  
+#endif
     std::cout << "=== uRPC XiNet Server "
               << URPC_XINET_VERSION_MAJOR << "."
               << URPC_XINET_VERSION_MINOR << "."

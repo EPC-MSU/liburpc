@@ -13,7 +13,7 @@ std::mutex UrpcDevicePHandleGuard::_mutex_pool_mutex;
 urpc_device_handle_t UrpcDevicePHandleGuard::create_urpc_h(uint32_t serial, std::mutex *pm)
 {
     const std::string addr = serial_to_address(serial);
-    std::unique_lock<std::mutex> _lck(*pm);
+    //std::unique_lock<std::mutex> _lck(*pm);
     
     ZF_LOGD("Open device %u.", serial);
     urpc_device_handle_t handle = urpc_device_create(addr.c_str());
@@ -43,7 +43,7 @@ urpc_result_t UrpcDevicePHandleGuard::urpc_send_request(const char cid[URPC_CID_
 
 void UrpcDevicePHandleGuard::destroy_urpc_h()
 {
-    std::unique_lock<std::mutex> _lck(*_pmutex);
+    //std::unique_lock<std::mutex> _lck(*_pmutex);
     if (_uhandle != nullptr)
     {
         urpc_device_destroy(&_uhandle);
@@ -53,7 +53,7 @@ void UrpcDevicePHandleGuard::destroy_urpc_h()
 
 void UrpcDevicePHandleGuard::create_mutex(uint32_t serial)
 {
-    std::unique_lock<std::mutex> _lck(_mutex_pool_mutex);
+    //std::unique_lock<std::mutex> _lck(_mutex_pool_mutex);
     if (_mutex_pool.find(serial) == _mutex_pool.cend())
     {
         _mutex_pool[serial] = new std::mutex();
@@ -63,15 +63,16 @@ void UrpcDevicePHandleGuard::create_mutex(uint32_t serial)
 
 void UrpcDevicePHandleGuard::free_mutex_pool()
 {
-    for (auto it = _mutex_pool.cbegin(); it != _mutex_pool.cend(); it++)
+    for (auto &pm : _mutex_pool)
     {
-        _mutex_pool.erase(it);
+        delete pm.second;
     } 
 }
 
 void UrpcDevicePHandleGuard::destroy_mutex()
 {
  _pmutex -> unlock();   
+ _pmutex = nullptr;
 }
 
 void MapSerialUrpc::log()
