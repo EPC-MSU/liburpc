@@ -7,6 +7,11 @@
 #include <algorithm>
 #include <functional>
 
+///
+#include <execinfo.h>
+#include <signal.h>
+///
+
 /*
  * Supervisor option.
  * It may not work properly on windows now.
@@ -249,10 +254,28 @@ void print_help(char *argv[])
 #endif
 }
 
+///
+void handler(int sig) {
+  void *array[10];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 10);
+
+  // print out all the frames to stderr
+  ZF_LOGE("Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
+///
+
 ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
 
 int main(int argc, char *argv[])
 {
+    ///
+    signal(SIGSEGV, handler);   // install our handler  
+    ///  
     std::cout << "=== uRPC XiNet Server "
               << URPC_XINET_VERSION_MAJOR << "."
               << URPC_XINET_VERSION_MINOR << "."

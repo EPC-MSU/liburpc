@@ -12,6 +12,8 @@
  * UrpcDevicePHandleGuard - class to contain urpc device handle pointer and its guarding mutex.
  * An Urpc device handle represents some internal resource associated with the urpc device communcation
  */
+ 
+
 class UrpcDevicePHandleGuard {
 public:
     UrpcDevicePHandleGuard() : _uhandle(nullptr), _pmutex(nullptr){ }
@@ -37,7 +39,7 @@ public:
      */
     void destroy_urpc_h();
     void destroy_mutex();
-    void create_mutex() { _pmutex = new std::mutex(); }
+    void create_mutex(uint32_t serial); 
     void set_urpc_h(urpc_device_handle_t h) { _uhandle = h; }
 
     UrpcDevicePHandleGuard(const UrpcDevicePHandleGuard &uh)
@@ -53,7 +55,11 @@ public:
         return *this;
     }
 
+    static void free_mutex_pool();
 private:
+
+    static std::mutex _mutex_pool_mutex;
+    static std::map<uint32_t, std::mutex *> _mutex_pool;    
     std::mutex *_pmutex;
     urpc_device_handle_t _uhandle;
 };
@@ -107,10 +113,12 @@ public:
      */
     void remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_t serial, bool force_urpc_remove = false);
     void log();
+    
+
 private:
     ReadWriteLock _rwlock;
 
-    // spy for tcp-connections
+     // spy for tcp-connections
     std::list<conn_serial> _conns;
 };
 

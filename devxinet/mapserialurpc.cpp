@@ -7,11 +7,14 @@
 #include <zf_log.h>
 #include "mapserialurpc.h"
 
+std::map<uint32_t, std::mutex *> UrpcDevicePHandleGuard::_mutex_pool;
+std::mutex UrpcDevicePHandleGuard::_mutex_pool_mutex;
 
 urpc_device_handle_t UrpcDevicePHandleGuard::create_urpc_h(uint32_t serial, std::mutex *pm)
 {
     const std::string addr = serial_to_address(serial);
     std::unique_lock<std::mutex> _lck(*pm);
+    
     ZF_LOGD("Open device %u.", serial);
     urpc_device_handle_t handle = urpc_device_create(addr.c_str());
     if (handle == nullptr) {
@@ -48,13 +51,27 @@ void UrpcDevicePHandleGuard::destroy_urpc_h()
     }
 }
 
+void UrpcDevicePHandleGuard::create_mutex(uint32_t serial)
+{
+    std::unique_lock<std::mutex> _lck(_mutex_pool_mutex);
+    if (_mutex_pool.find(serial) == _mutex_pool.cend())
+    {
+        _mutex_pool[serial] = new std::mutex();
+    }
+    _pmutex =  _mutex_pool[serial];
+}
+
+void UrpcDevicePHandleGuard::free_mutex_pool()
+{
+    for (auto it = _mutex_pool.cbegin(); it != _mutex_pool.cend(); it++)
+    {
+        _mutex_pool.erase(it);
+    } 
+}
+
 void UrpcDevicePHandleGuard::destroy_mutex()
 {
-    if (_pmutex != nullptr)
-    {
-        delete _pmutex;
-        _pmutex = nullptr;
-    }
+ _pmutex -> unlock();   
 }
 
 void MapSerialUrpc::log()
@@ -84,6 +101,8 @@ MapSerialUrpc::~MapSerialUrpc()
         m.second.destroy_urpc_h();
         m.second.destroy_mutex();
     }
+    
+    UrpcDevicePHandleGuard::free_mutex_pool();
 }
 
 static bool _find_conn(const conn_serial &item, conn_id_t conn_id)
@@ -127,7 +146,7 @@ bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
      */
     if (find(serial) == cend())
     {
-        (*this)[serial].create_mutex(); // new map element also created and inserted
+        (*this)[serial].create_mutex(serial); // new map element also created and inserted
     }
      _rwlock.write_unlock();
 
@@ -216,10 +235,10 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
             uh.destroy_urpc_h();
         }
     }
-	else
-	{
-		_rwlock.read_unlock();
-	}
+    else
+    {
+	_rwlock.read_unlock();
+    }
     if (!destroy_serial)  return;
     _rwlock.write_lock();
 
