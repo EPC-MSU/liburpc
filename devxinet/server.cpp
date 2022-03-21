@@ -214,7 +214,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                     response_packet(conn_id, serial);
             response_packet.send_data();
             ZF_LOGD( "To connection %u close device response packet sent.", conn_id);
-
+            msu.remove_conn_or_remove_urpc_device(conn_id, serial);   
             // We don’t try to close the device here.
             // It will be closed in the callback_disc() function after the thread termination.
             // Force socket thread final becouse of this exception.
@@ -260,11 +260,13 @@ void handler(int sig) {
   size_t size;
 
   // get void*'s for all entries on the stack
-  size = backtrace(array, 10);
+  size = backtrace(array, 32);
 
   // print out all the frames to stderr
-  ZF_LOGE("Error: signal %d:\n", sig);
+  ZF_LOGE("IN SIGNAL HANDLER: signal no %d:\n", sig);
+  ZF_LOGE("Stack trace...");
   backtrace_symbols_fd(array, size, STDERR_FILENO);
+  ZF_LOGE("End of stack trace.");
   exit(1);
 }
 #endif
