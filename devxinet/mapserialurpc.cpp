@@ -201,17 +201,18 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
 {
     if (conn_id == UINT32_MAX && serial_known == UINT32_MAX)
         return;
-	
-    // first check if connection exists (non-deleted earlier) in case of unknown serial (call from catch-block, to minimize catch-block actions) 
+    // first check if connection exists (non-deleted earlier) in case of unknown serial (call from catch-block,
+    // to minimize catch-block actions) 
     if (serial_known == UINT32_MAX && conn_id != UINT32_MAX)
-    {	
-	bool exit_ok;
-	 _rwlock.read_lock();
-	exit_ok = (std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id)) ==
+    {
+        bool exit_ok;
+        _rwlock.read_lock();
+        exit_ok = (std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id)) ==
                   _conns.cend());
-	_rwlock.read_unlock();
-        if  (exit_ok) return;	  // already removed - lets go out
-    }	
+        _rwlock.read_unlock();
+        if (exit_ok) return;     // already removed - lets go out
+    }
+
     bool destroy_serial = false;
     uint32_t serial = serial_known;
 
