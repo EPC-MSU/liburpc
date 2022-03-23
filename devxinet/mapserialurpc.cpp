@@ -72,7 +72,10 @@ void UrpcDevicePHandleGuard::free_mutex_pool()
 
 void UrpcDevicePHandleGuard::destroy_mutex()
 {
+ _pmutex -> try_lock();
  _pmutex -> unlock();   
+ // anyway, pmutex will be unlocked definitly
+ // _pmutex points to some once allocated object, do not need to be deallocated every time at the end of using
  _pmutex = nullptr;
 }
 
@@ -210,6 +213,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
         _rwlock.write_lock();
 
         std::list<conn_serial>::const_iterator it;
+        // find the conn_id connection in _conns list of pairs 
         if ((it = std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id))) !=
             _conns.cend())
         {
@@ -228,6 +232,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
     {
         UrpcDevicePHandleGuard &uh = (*this)[serial];
         if ((force_urpc_remove == true) ||
+        // check if there is any device with this serial in the the _conns list of pairs
             std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial)) ==
             _conns.cend())
         {
