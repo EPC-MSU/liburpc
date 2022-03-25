@@ -64,9 +64,13 @@ void UrpcDevicePHandleGuard::create_mutex(uint32_t serial)
 
 void UrpcDevicePHandleGuard::free_mutex_pool()
 {
-    for (auto &pm : _mutex_pool)
+    // some strange iterator behavior when it's container is empty
+    if (_mutex_pool.size() == 0) return;
+    std::map<uint32_t, std::mutex *>::const_iterator mpli = _mutex_pool.cbegin();
+ 
+    for (; mpli != _mutex_pool.cend(); mpli++)
     {
-        delete pm.second;
+        delete mpli -> second;
     } 
 }
 
@@ -100,13 +104,17 @@ void MapSerialUrpc::log()
 
 MapSerialUrpc::~MapSerialUrpc()
 {
-    for (auto m : *this)
+    // some strange iterator behavior when it's container is empty
+    if (size() != 0)
     {
-        ZF_LOGD("Close device at deinit stage %u.", m.first);
-        m.second.destroy_urpc_h();
-        m.second.destroy_mutex();
+
+        for (auto m : *this)
+        {
+            ZF_LOGD("Close device at deinit stage %u.", m.first);
+            m.second.destroy_urpc_h();
+            m.second.destroy_mutex();
+        }
     }
-    
     UrpcDevicePHandleGuard::free_mutex_pool();
 }
 

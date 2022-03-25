@@ -237,10 +237,10 @@ void callback_disc(conn_id_t conn_id) {
 
 void print_help(char *argv[])
 {
-
-
 #if ZF_LOG_LEVEL <= ZF_LOG_DEBUG
-    std::cout << "Usage: " << argv[0] << " keyfile [debug]"
+    std::cout << 
+        "ERROR: no valid sqlite key file provided" << std::endl <<
+        "Usage: " << argv[0] << " keyfile [debug]"
         << std::endl
         << "Examples: " << std::endl
         << argv[0] << " ~/keyfile.sqlite" << std::endl
@@ -275,6 +275,7 @@ ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
 
 int main(int argc, char *argv[])
 {
+    
 #if not defined(WIN32) && not defined(WIN64)
     signal(SIGSEGV, handler);   // install our handler  
 #endif
@@ -284,7 +285,9 @@ int main(int argc, char *argv[])
               << URPC_XINET_VERSION_BUGFIX << " "
               << "===" << std::endl;
 
-    if (argc < 2) 
+    // if params count is not enough or there is just one param - debug
+    // server can not start 
+    if (argc < 2)
     {
         print_help(argv);
         std::cin.get(); // To avoid console closing
@@ -305,40 +308,46 @@ int main(int argc, char *argv[])
         {
             zf_log_set_output_level(ZF_LOG_DEBUG);
         }
-
     }
-
-    bindy::Bindy bindy(argv[1], true, false);
-    pb = &bindy;
-
-    #ifdef ENABLE_SUPERVISOR
-    if (argc > 2) 
+    
+    try
     {
-        if (strcmp(argv[2], "disable_supervisor") == 0)
+        bindy::Bindy bindy(argv[1], true, false);
+        pb = &bindy;
+
+#ifdef ENABLE_SUPERVISOR
+        if (argc > 2) 
         {
-            supervisor.stop();
+            if (strcmp(argv[2], "disable_supervisor") == 0)
+            {
+                supervisor.stop();
+            }
+            else if (strcmp(argv[2], "enable_supervisor") == 0)
+            {
+                ; // already enabled
+            }
+            else
+            {
+                print_help(argv);
+                return 0;
+            }
         }
-        else if (strcmp(argv[2], "enable_supervisor") == 0)
+        if (argc == 4)
         {
-          ; // already enabled
+            supervisor.set_limit(std::stoi(argv[3]));
         }
-        else
-        {
-            print_help(argv);
-            return 0;
-        }
-    }
-    if (argc == 4)
+#endif
+
+        ZF_LOGI("Starting server...");
+
+        bindy.connect();
+        bindy.set_handler(&callback_data);
+        bindy.set_discnotify(&callback_disc);
+    } 
+    catch (std::exception &ex)
     {
-        supervisor.set_limit(std::stoi(argv[3]));
+        std::cout << "Exception catched: " << ex.what() << std::endl
+                  << "Server stopped" << std::endl;
     }
-    #endif
-
-    ZF_LOGI("Starting server...");
-
-    bindy.connect();
-    bindy.set_handler(&callback_data);
-    bindy.set_discnotify(&callback_disc);
-
     return 0;
 }
