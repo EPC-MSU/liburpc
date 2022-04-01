@@ -4,7 +4,8 @@ option(ENABLE_SUPERVISOR "Enable supervisor" ON)
 if (WIN32)
   set(ENABLE_SUPERVISOR OFF CACHE INTERNAL "")
 endif()
-OPTION(URPC_ENABLE_XIBRIDGE "Enable xibridge instead of devxinet OFF)
+
+# OPTION(URPC_ENABLE_XIBRIDGE "Enable xibridge instead of devxinet OFF)
 
 add_definitions( -DZF_LOG_LEVEL=ZF_LOG_DEBUG)
 

@@ -6,5 +6,6 @@
 #cmakedefine URPC_ENABLE_XINET
 #cmakedefine URPC_ENABLE_UDP
 #cmakedefine URPC_ENABLE_VIRTUAL
+#cmakedefine URPC_ENABLE_XIBRIDGE
 
 #endif  // URPC_CONFIG_H

@@ -10,9 +10,6 @@
 #include "uri.h"
 #include "synchronizer.h"
 
-#define URPC_ENABLE_XINET // to test
-#define URPC_ENABLE_XIBRIDGE
-
 #ifdef URPC_ENABLE_SERIAL
     #include "devserial/devserial.h"
 #endif
@@ -168,7 +165,7 @@ urpc_device_create(
         case URPC_DEVICE_TYPE_XINET:
             #ifdef URPC_ENABLE_XIBRIDGE
                 xib_serial = strtoul(parsed_uri.path, NULL, 10);
-                if ((device->impl.conn_id = xibridge_open_device_connection(parsed_uri.host, xib_serial, 2, &xib_err)) == 0)
+                if ((device->impl.conn_id = xibridge_open_device_connection(parsed_uri.host, xib_serial, 2, TIMEOUT_3000, &xib_err)) == 0)
                 {
                     xibridge_get_err_expl(xib, 1024 + 16, 0, xib_err);
                     ZF_LOGE("failed to create xinet device - %s", (char *)xib);
@@ -234,7 +231,7 @@ urpc_result_t urpc_device_send_request(
 #ifdef URPC_ENABLE_XIBRIDGE
     unsigned int xib_err;
     uint8_t xib[XIB_LENGTH];
-    int xib_result;
+    unsigned int xib_result;
     unsigned int xib_status;
     memcpy(xib, cid, URPC_CID_SIZE);
     memcpy(xib + URPC_CID_SIZE, request, request_len);
@@ -256,7 +253,7 @@ urpc_result_t urpc_device_send_request(
             #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
             #ifdef URPC_ENABLE_XIBRIDGE
-                xib_result = xibridge_device_request_response(device->impl.conn_id, xib, request_len + URPC_CID_SIZE, response, response_len, xib_status);
+                xib_result = (unsigned int)xibridge_device_request_response(device->impl.conn_id, xib, request_len + URPC_CID_SIZE, response, response_len, &xib_status);
                 if (xib_result != 0) // some positive
                 {
                     result = xib_status;
@@ -304,10 +301,6 @@ urpc_result_t urpc_device_destroy(
 )
 {
     struct urpc_device_t *device = *device_ptr;
-    #ifdef URPC_ENABLE_XIBRIDGE
-        unsigned int xib_err;
-        unsigned int xib_status;
-    #endif
     if (device == NULL)
     {
         return urpc_result_nodevice;

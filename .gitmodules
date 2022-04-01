@@ -7,3 +7,6 @@
 [submodule "devxinet/vendor/bindy"]
 	path = devxinet/vendor/bindy
 	url = https://github.com/epc-msu/Bindy
+[submodule "devxinet/vendor/xibridge"]
+	path = devxinet/vendor/xibridge
+	url = https://github.com/EPC-MSU/xibridge

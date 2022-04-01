@@ -5,6 +5,7 @@ PROJECT(urpc)
 OPTION(URPC_ENABLE_SERIAL "Enable serial port devices support" ON)
 OPTION(URPC_ENABLE_XINET "Enable network devices support via bindy/cryptopp" ON)
 OPTION(URPC_ENABLE_UDP "Enable UDP adapter devices support" ON)
+OPTION(URPC_ENABLE_XIBRIDGE "Enable xibridge instead of devxinet" OFF)
 
 IF(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
     # It is required to build a rpath framework
