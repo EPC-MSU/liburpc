@@ -235,11 +235,12 @@ void callback_disc(conn_id_t conn_id) {
     msu.log();
 }
 
-void print_help(char *argv[])
+void print_help(char *argv[], bool print_err)
 {
+	if (print_err)
+		std::cout << "ERROR: no valid sqlite key file provided" << std::endl;
 #if ZF_LOG_LEVEL <= ZF_LOG_DEBUG
     std::cout << 
-        "ERROR: no valid sqlite key file provided" << std::endl <<
         "Usage: " << argv[0] << " keyfile [debug]"
         << std::endl
         << "Examples: " << std::endl
@@ -286,12 +287,24 @@ int main(int argc, char *argv[])
               << "===" << std::endl;
 
     // if params count is not enough or there is just one param - debug
-    // server can not start 
-    if (argc < 2)
+    // server can not start
+	if (argc < 3)
     {
-        print_help(argv);
-        std::cin.get(); // To avoid console closing
-        return 0;
+		bool exit = true;
+		if (argc == 2)
+		{
+			const char *s = argv[1];
+			if (stricmp(s, "-help") != 0 && stricmp(s, "help") != 0
+				&& stricmp(s, "--help") != 0 && stricmp(s, "-h") != 0
+				&& stricmp(s, "--h") != 0)
+				exit = false;
+		}
+		if (exit)
+		{
+			print_help(argv, argc < 2);
+			std::cin.get(); // To avoid console closing
+			return 0;
+		}
     }
 
     int res = initialization();
