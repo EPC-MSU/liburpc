@@ -13,7 +13,7 @@ std::mutex UrpcDevicePHandleGuard::_mutex_pool_mutex;
 urpc_device_handle_t UrpcDevicePHandleGuard::create_urpc_h(uint32_t serial, std::mutex *pm)
 {
     const std::string addr = serial_to_address(serial);
-    //std::unique_lock<std::mutex> _lck(*pm);
+    std::unique_lock<std::mutex> _lck(*pm);
     
     ZF_LOGD("Open device %u.", serial);
     urpc_device_handle_t handle = urpc_device_create(addr.c_str());
@@ -43,9 +43,10 @@ urpc_result_t UrpcDevicePHandleGuard::urpc_send_request(const char cid[URPC_CID_
 
 void UrpcDevicePHandleGuard::destroy_urpc_h()
 {
-    //std::unique_lock<std::mutex> _lck(*_pmutex);
+    std::unique_lock<std::mutex> _lck(*_pmutex);
     if (_uhandle != nullptr)
     {
+        ZF_LOGD("Urpc device handle %u.", _uhandle);
         urpc_device_destroy(&_uhandle);
         _uhandle = nullptr;
     }
@@ -53,7 +54,7 @@ void UrpcDevicePHandleGuard::destroy_urpc_h()
 
 void UrpcDevicePHandleGuard::create_mutex(uint32_t serial)
 {
-    //std::unique_lock<std::mutex> _lck(_mutex_pool_mutex);
+    std::unique_lock<std::mutex> _lck(_mutex_pool_mutex);
     if (_mutex_pool.find(serial) == _mutex_pool.cend())
     {
         _mutex_pool[serial] = new std::mutex();
@@ -63,16 +64,23 @@ void UrpcDevicePHandleGuard::create_mutex(uint32_t serial)
 
 void UrpcDevicePHandleGuard::free_mutex_pool()
 {
-    for (auto &pm : _mutex_pool)
+    // some strange iterator behavior when it's container is empty
+    if (_mutex_pool.size() == 0) return;
+    std::map<uint32_t, std::mutex *>::const_iterator mpli = _mutex_pool.cbegin();
+ 
+    for (; mpli != _mutex_pool.cend(); mpli++)
     {
-        delete pm.second;
+        delete mpli -> second;
     } 
 }
 
 void UrpcDevicePHandleGuard::destroy_mutex()
 {
- //_pmutex -> unlock();   
- _pmutex = nullptr;
+  _pmutex -> try_lock();
+  _pmutex -> unlock();   
+  // anyway, pmutex will be unlocked definitly
+  // _pmutex points to some once allocated object, do not need to be deallocated every time at the end of using
+  _pmutex = nullptr;
 }
 
 void MapSerialUrpc::log()
@@ -96,16 +104,19 @@ void MapSerialUrpc::log()
 
 MapSerialUrpc::~MapSerialUrpc()
 {
-    ZF_LOGD("In map serial destructor.");
- 
-	for (auto m : *this)
+    // some strange iterator behavior when it's container is empty
+    if (size() != 0)
     {
-        ZF_LOGD("Close device at deinit stage %u.", m.first);
-        m.second.destroy_urpc_h();
-        m.second.destroy_mutex();
+
+        for (auto m : *this)
+        {
+            ZF_LOGD("Close device at deinit stage %u.", m.first);
+            m.second.destroy_urpc_h();
+            m.second.destroy_mutex();
+        }
     }
- 
-    UrpcDevicePHandleGuard::free_mutex_pool();
+
+   UrpcDevicePHandleGuard::free_mutex_pool();
 }
 
 static bool _find_conn(const conn_serial &item, conn_id_t conn_id)
@@ -222,6 +233,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
         _rwlock.write_lock();
 
         std::list<conn_serial>::const_iterator it;
+        // find the conn_id connection in _conns list of pairs 
         if ((it = std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id))) !=
             _conns.cend())
         {
@@ -240,6 +252,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
     {
         UrpcDevicePHandleGuard &uh = (*this)[serial];
         if ((force_urpc_remove == true) ||
+        // check if there is any device with this serial in the the _conns list of pairs
             std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial)) ==
             _conns.cend())
         {
