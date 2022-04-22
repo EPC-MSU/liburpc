@@ -258,7 +258,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
         {
             destroy_serial = true;
             _rwlock.read_unlock();
-            ZF_LOGD("Close device %u.", serial);
+            ZF_LOGD("Close device %u, conn_id %u.", serial, conn_id);
             uh.destroy_urpc_h();
         }
     }

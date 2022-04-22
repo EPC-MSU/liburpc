@@ -168,9 +168,9 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                     serial,
                     cid,
                     request_len ? &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)] : NULL,
-                    request_len,
+                    (uint8_t)request_len,
                     response.data(),
-                    response_len
+                    (uint8_t)response_len
                 );
             }
             else
@@ -180,10 +180,20 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
             DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial, result, response.data(), response_len);
-            if (!response_packet.send_data() || result == urpc_result_nodevice) {
+            if (!response_packet.send_data()) {
                 ZF_LOGE("To %u command response not sent.", conn_id);
-            } else {
+            } 
+            else if (result == urpc_result_nodevice)
+            {
+                ZF_LOGE("The device %u, conn_id %u is unavailable", serial, conn_id);
+            }
+            else {
                 ZF_LOGD("To %u command response packet sent.", conn_id);
+                if (result != urpc_result_ok)
+                {
+                    ZF_LOGD("The device %u, conn_id %u, return the result %u.", serial, conn_id, result);
+
+                }
             }
             break;
         }
@@ -195,14 +205,18 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE> response_packet(conn_id, serial, added);
 
             if (!response_packet.send_data()) {
-                ZF_LOGE("To %u open device response packet sending error.", conn_id);
+                ZF_LOGE("To %u open device %u response packet sending error.", conn_id, serial);
             } else {
-                ZF_LOGD("To %u open device response packet sent.", conn_id);
+                ZF_LOGD("To %u open device %u response packet sent.", conn_id, serial);
             }
 
             if (added)
             {
-                ZF_LOGD("New connection added conn_id=%u + ...", conn_id);
+                ZF_LOGD("New connection to device %u added conn_id=%u + ...", conn_id, serial);
+            }
+            else
+            {
+                ZF_LOGD("Failed to open device %u, conn_id=%u + ...", serial, conn_id);
             }
             msu.log();
             break;
@@ -212,9 +226,12 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
             DataPacket<URPC_CLOSE_DEVICE_RESPONSE_PACKET_TYPE>
                     response_packet(conn_id, serial);
-            response_packet.send_data();
-            ZF_LOGD( "To connection %u close device response packet sent.", conn_id);
-            msu.remove_conn_or_remove_urpc_device(conn_id, serial);   
+            if (!response_packet.send_data()) {
+                ZF_LOGE("To conn_id %u close device %u response packet sending error.", conn_id, serial);
+            }
+            else {
+                ZF_LOGD("To conn_id %u close device %u response packet sent.", conn_id, serial);
+            }
             // We don’t try to close the device here.
             // It will be closed in the callback_disc() function after the thread termination.
             // Force socket thread final becouse of this exception.
@@ -294,9 +311,9 @@ int main(int argc, char *argv[])
 		if (argc == 2)
 		{
 			const char *s = argv[1];
-			if (stricmp(s, "-help") != 0 && stricmp(s, "help") != 0
-				&& stricmp(s, "--help") != 0 && stricmp(s, "-h") != 0
-				&& stricmp(s, "--h") != 0)
+			if (_stricmp(s, "-help") != 0 && _stricmp(s, "help") != 0
+				&& _stricmp(s, "--help") != 0 && _stricmp(s, "-h") != 0
+				&& _stricmp(s, "--h") != 0)
 				exit = false;
 		}
 		if (exit)
