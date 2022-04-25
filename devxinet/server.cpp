@@ -6,6 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include <functional>
+#include <ctype.h>
 
 #if not defined(WIN32) && not defined(WIN64)
   #include <execinfo.h>
@@ -270,9 +271,24 @@ void handler(int sig) {
   ZF_LOGE("End of stack trace.");
   exit(1);
 }
+
+//the next function id not C standard, not supported in non win, the next is manual definition  
+char *strlwr(char *str)
+{
+    unsigned char *p = (unsigned char *)str;
+
+    while (*p) {
+        *p = tolower((unsigned char)*p);
+        p++;
+    }
+
+    return str;
+}
 #endif
 
 ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
+
+
 
 int main(int argc, char *argv[])
 {
@@ -293,10 +309,11 @@ int main(int argc, char *argv[])
 		bool exit = true;
 		if (argc == 2)
 		{
-			const char *s = argv[1];
-			if (stricmp(s, "-help") != 0 && stricmp(s, "help") != 0
-				&& stricmp(s, "--help") != 0 && stricmp(s, "-h") != 0
-				&& stricmp(s, "--h") != 0)
+			char *s = argv[1];
+            strlwr(s);
+			if (strcmp(s, "-help") != 0 && strcmp(s, "help") != 0
+				&& strcmp(s, "--help") != 0 && strcmp(s, "-h") != 0
+				&& strcmp(s, "--h") != 0)
 				exit = false;
 		}
 		if (exit)
@@ -317,6 +334,7 @@ int main(int argc, char *argv[])
 
     if (argc > 2)
     {
+        strlwr(argv[2]);
         if (strcmp(argv[2], "debug") == 0)
         {
             zf_log_set_output_level(ZF_LOG_DEBUG);
