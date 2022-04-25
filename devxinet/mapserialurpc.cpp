@@ -13,8 +13,7 @@ std::mutex UrpcDevicePHandleGuard::_mutex_pool_mutex;
 urpc_device_handle_t UrpcDevicePHandleGuard::create_urpc_h(uint32_t serial, std::mutex *pm)
 {
     const std::string addr = serial_to_address(serial);
-    std::unique_lock<std::mutex> _lck(*pm);
-    
+    //std::unique_lock<std::mutex> _lck(*pm);
     ZF_LOGD("Open device %u.", serial);
     urpc_device_handle_t handle = urpc_device_create(addr.c_str());
     if (handle == nullptr) {
@@ -35,7 +34,6 @@ urpc_result_t UrpcDevicePHandleGuard::urpc_send_request(const char cid[URPC_CID_
     if (_uhandle != nullptr)
     {
         std::unique_lock<std::mutex> lck(*pmutex());
-
         return urpc_device_send_request(_uhandle, cid, request, request_len, response, response_len);
     }
     return urpc_result_nodevice;
@@ -43,7 +41,7 @@ urpc_result_t UrpcDevicePHandleGuard::urpc_send_request(const char cid[URPC_CID_
 
 void UrpcDevicePHandleGuard::destroy_urpc_h()
 {
-    std::unique_lock<std::mutex> _lck(*_pmutex);
+    //std::unique_lock<std::mutex> _lck(*_pmutex);
     if (_uhandle != nullptr)
     {
         ZF_LOGD("Urpc device handle %u.", _uhandle);
@@ -174,25 +172,39 @@ bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
     {
         _rwlock.read_unlock();
         urpc_device_handle_t purpc = nullptr;
-        purpc = UrpcDevicePHandleGuard::create_urpc_h(serial, uh.pmutex());
-        _rwlock.write_lock();                              // multithreding !!!
-        if (purpc != nullptr && find(serial) != cend())
+        
+        if (uh.is_locked_in_creating())
         {
-            (*this)[serial].set_urpc_h(purpc);
-            _conns.insert(_conns.cend(), std::make_pair(conn_id, serial));
+            uh.pmutex() -> lock();
+            uh.pmutex()->unlock();
+            return uh.uhandle() != nullptr;
         }
-        if ((*this)[serial].uhandle() ==  nullptr)
+        else
         {
-            (*this)[serial].destroy_mutex();
-            erase(serial);
+            uh.pmutex()->lock();
+            uh.set_locked_action(ast_creating);
+            purpc = UrpcDevicePHandleGuard::create_urpc_h(serial, uh.pmutex());
+            uh.set_locked_action(ast_just_nothing);
+            uh.pmutex()->unlock();
+            _rwlock.write_lock();                              // multithreding !!!
+            if (purpc != nullptr && find(serial) != cend())
+            {
+                (*this)[serial].set_urpc_h(purpc);
+                _conns.insert(_conns.cend(), std::make_pair(conn_id, serial));
+            }
+            if ((*this)[serial].uhandle() == nullptr)
+            {
+                (*this)[serial].destroy_mutex();
+                erase(serial);
+            }
+            _rwlock.write_unlock();
+            return purpc != nullptr;
         }
-        _rwlock.write_unlock();
-        return purpc != nullptr;
     }
     else
     {
         _rwlock.read_unlock();
-        return true;
+        return uh.uhandle() != nullptr;
     }
 }
 
@@ -259,7 +271,20 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
             destroy_serial = true;
             _rwlock.read_unlock();
             ZF_LOGD("Close device %u, conn_id %u.", serial, conn_id);
-            uh.destroy_urpc_h();
+            if (uh.is_locked_in_destroing())
+            {
+                uh.pmutex() -> lock();
+                uh.pmutex() -> unlock();
+            }
+            else
+            { 
+                uh.pmutex() -> lock();
+                uh.set_locked_action(ast_destroing);
+                uh.destroy_urpc_h(); 
+                uh.set_locked_action(ast_just_nothing);
+                uh.pmutex() -> unlock();
+            }
+            
         }
     }
     else
@@ -276,7 +301,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
             uh.destroy_mutex();
         erase(serial);
     }
-
+    /*
     if (conn_id != UINT32_MAX)
     {
         for (auto it = _conns.cbegin(); it != _conns.cend(); it++)
@@ -285,6 +310,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
                 _conns.erase(it);
         }
     }
+    */
     _rwlock.write_unlock();
 }
 

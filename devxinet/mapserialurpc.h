@@ -13,10 +13,17 @@
  * An Urpc device handle represents some internal resource associated with the urpc device communcation
  */
  
+enum action_spec_t
+{
+    ast_creating = 1,
+    ast_destroing = 2,
+    ast_just_nothing = 0
+};
+
 
 class UrpcDevicePHandleGuard {
 public:
-    UrpcDevicePHandleGuard() : _uhandle(nullptr), _pmutex(nullptr){ }
+    UrpcDevicePHandleGuard() : _uhandle(nullptr), _pmutex(nullptr){ _action_spec = ast_just_nothing; }
     /*
      * Creates urpc device handle pointer, calls urpc device creation function
      */
@@ -41,6 +48,9 @@ public:
     void destroy_mutex();
     void create_mutex(uint32_t serial); 
     void set_urpc_h(urpc_device_handle_t h) { _uhandle = h; }
+    bool is_locked_in_destroing() const { return _action_spec == ast_destroing; }
+    bool is_locked_in_creating()const  { return _action_spec == ast_creating; }
+    void set_locked_action(action_spec_t ac) { _action_spec = ac; }
 
     UrpcDevicePHandleGuard(const UrpcDevicePHandleGuard &uh)
     {
@@ -61,6 +71,7 @@ private:
     static std::mutex _mutex_pool_mutex;
     static std::map<uint32_t, std::mutex *> _mutex_pool;    
     std::mutex *_pmutex;
+    std::atomic_uint32_t _action_spec;
     urpc_device_handle_t _uhandle;
 };
 
