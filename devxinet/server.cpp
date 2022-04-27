@@ -202,9 +202,9 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
         case URPC_OPEN_DEVICE_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received open device request packet.", conn_id );
             msu.log();
-            _mtx_open_close.lock();
+            //_mtx_open_close.lock();
             added = msu.open_if_not(conn_id, serial);
-			_mtx_open_close.unlock();
+			//_mtx_open_close.unlock();
             DataPacket<URPC_OPEN_DEVICE_RESPONSE_PACKET_TYPE> response_packet(conn_id, serial, added);
 
             if (!response_packet.send_data()) {
@@ -239,9 +239,9 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             // It will be closed in the callback_disc() function after the thread termination.
             // Force socket thread final becouse of this exception.
            ZF_LOGD("Connection or Device removed explicitlywith conn_id=%u + ...", conn_id);
-		    _mtx_open_close.lock();
+		    //_mtx_open_close.lock();
 		   msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
-		   _mtx_open_close.unlock();
+		   //_mtx_open_close.unlock();
 		   throw std::runtime_error("Stopping socket_thread");
             break;
         }

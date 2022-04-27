@@ -14,10 +14,14 @@ urpc_device_handle_t UrpcDevicePHandleGuard::create_urpc_h(uint32_t serial, std:
 {
     const std::string addr = serial_to_address(serial);
     //std::unique_lock<std::mutex> _lck(*pm);
-    ZF_LOGD("Open device %u.", serial);
     urpc_device_handle_t handle = urpc_device_create(addr.c_str());
-    if (handle == nullptr) {
+    if (handle == nullptr) 
+    {
         ZF_LOGE("Can\'t open device %s.", addr.c_str());
+    }
+    else
+    {
+        ZF_LOGD("Just opened device %u.", serial);
     }
     return handle;
 }
@@ -34,7 +38,10 @@ urpc_result_t UrpcDevicePHandleGuard::urpc_send_request(const char cid[URPC_CID_
     if (_uhandle != nullptr)
     {
         std::unique_lock<std::mutex> lck(*pmutex());
-        return urpc_device_send_request(_uhandle, cid, request, request_len, response, response_len);
+        ZF_LOGD("In sending request to handle %u...", _uhandle);
+        urpc_result_t result = urpc_device_send_request(_uhandle, cid, request, request_len, response, response_len);
+        ZF_LOGD("urpc_device_send_request for handle %u returned %d.", _uhandle, result);
+        return result;
     }
     return urpc_result_nodevice;
 }
@@ -44,8 +51,9 @@ void UrpcDevicePHandleGuard::destroy_urpc_h()
     //std::unique_lock<std::mutex> _lck(*_pmutex);
     if (_uhandle != nullptr)
     {
-        ZF_LOGD("Urpc device handle %u.", _uhandle);
+       ZF_LOGD("Urpc device handle at destroing %u.", _uhandle);
         urpc_device_destroy(&_uhandle);
+       ZF_LOGD("Urpc device handle at destroyed %u.", _uhandle);
         _uhandle = nullptr;
     }
 }
@@ -210,7 +218,7 @@ bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
 
 bool MapSerialUrpc::is_opened_and_valid(uint32_t serial)
 {
-    bool ret;
+    bool ret = nullptr;
     _rwlock.read_lock();
     if (find(serial) != cend())
     {
@@ -268,23 +276,27 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
             std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial)) ==
             _conns.cend())
         {
-            destroy_serial = true;
+            //destroy_serial = true;
             _rwlock.read_unlock();
-            ZF_LOGD("Close device %u, conn_id %u.", serial, conn_id);
-            if (uh.is_locked_in_destroing())
+            if (uh.is_locked_in_destroing() )
             {
                 uh.pmutex() -> lock();
                 uh.pmutex() -> unlock();
+                return;
             }
             else
             { 
                 uh.pmutex() -> lock();
                 uh.set_locked_action(ast_destroing);
-                uh.destroy_urpc_h(); 
+              //  uh.destroy_urpc_h(); 
                 uh.set_locked_action(ast_just_nothing);
                 uh.pmutex() -> unlock();
             }
             
+        }
+        else
+        {
+            _rwlock.read_unlock();
         }
     }
     else
@@ -301,7 +313,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
             uh.destroy_mutex();
         erase(serial);
     }
-    /*
+    
     if (conn_id != UINT32_MAX)
     {
         for (auto it = _conns.cbegin(); it != _conns.cend(); it++)
@@ -310,7 +322,7 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
                 _conns.erase(it);
         }
     }
-    */
+    
     _rwlock.write_unlock();
 }
 

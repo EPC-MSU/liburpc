@@ -23,7 +23,7 @@ enum action_spec_t
 
 class UrpcDevicePHandleGuard {
 public:
-    UrpcDevicePHandleGuard() : _uhandle(nullptr), _pmutex(nullptr){ _action_spec = ast_just_nothing; }
+    UrpcDevicePHandleGuard() : _uhandle(nullptr), _pmutex(nullptr){ _action_spec = ast_just_nothing; _busy_counter++; }
     /*
      * Creates urpc device handle pointer, calls urpc device creation function
      */
@@ -72,6 +72,7 @@ private:
     static std::map<uint32_t, std::mutex *> _mutex_pool;    
     std::mutex *_pmutex;
     std::atomic_uint32_t _action_spec;
+    std::atomic_uint32_t _busy_counter;
     urpc_device_handle_t _uhandle;
 };
 
