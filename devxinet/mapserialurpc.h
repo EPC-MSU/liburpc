@@ -23,7 +23,7 @@ enum action_spec_t
 
 class UrpcDevicePHandleGuard {
 public:
-    UrpcDevicePHandleGuard() : _uhandle(nullptr), _pmutex(nullptr){ _action_spec = ast_just_nothing; _busy_counter++; }
+	UrpcDevicePHandleGuard() : _uhandle(nullptr), _pmutex(nullptr) { _destroy = false; }
     /*
      * Creates urpc device handle pointer, calls urpc device creation function
      */
@@ -48,10 +48,9 @@ public:
     void destroy_mutex();
     void create_mutex(uint32_t serial); 
     void set_urpc_h(urpc_device_handle_t h) { _uhandle = h; }
-    bool is_locked_in_destroing() const { return _action_spec == ast_destroing; }
-    bool is_locked_in_creating()const  { return _action_spec == ast_creating; }
-    void set_locked_action(action_spec_t ac) { _action_spec = ac; }
-
+	void set_destroy_flag() { _destroy = true; }
+	void clear_destroy_flag() { _destroy = false; }
+	bool is_destroy_flag() const { return _destroy == true; }
     UrpcDevicePHandleGuard(const UrpcDevicePHandleGuard &uh)
     {
         _uhandle = uh.uhandle();
@@ -71,8 +70,7 @@ private:
     static std::mutex _mutex_pool_mutex;
     static std::map<uint32_t, std::mutex *> _mutex_pool;    
     std::mutex *_pmutex;
-    std::atomic_uint32_t _action_spec;
-    std::atomic_uint32_t _busy_counter;
+    std::atomic_bool _destroy;
     urpc_device_handle_t _uhandle;
 };
 
@@ -110,12 +108,7 @@ public:
         uint8_t *response,
         uint8_t response_len);
 
-    /*
-     * Checks if the urpc device is really opened with this serial
-     */
-    bool is_opened_and_valid(uint32_t serial);
-
-    /*
+     /*
      * Removes connection if any, check if any of the rest of active connections matches the given serial,
      * removes urpc device if no connections exist
      * If force_urpc_remove is on, serial must be known and all associated connections will be removed from
@@ -124,12 +117,12 @@ public:
      * while their connection id is known
      */
     void remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_t serial, bool force_urpc_remove = false);
-    void log();
     
-
 private:
     ReadWriteLock _rwlock;
-
+	void _erase_connection_pair(conn_id_t conn_id);
+	uint32_t _count_conns_serial(uint32_t serial);
+	void _log();
      // spy for tcp-connections
     std::list<conn_serial> _conns;
 };

@@ -12,8 +12,8 @@ std::mutex UrpcDevicePHandleGuard::_mutex_pool_mutex;
 
 urpc_device_handle_t UrpcDevicePHandleGuard::create_urpc_h(uint32_t serial, std::mutex *pm)
 {
-    const std::string addr = serial_to_address(serial);
-    //std::unique_lock<std::mutex> _lck(*pm);
+	const std::string addr = serial_to_address(serial);
+    std::unique_lock<std::mutex> _lck(*pm);
     urpc_device_handle_t handle = urpc_device_create(addr.c_str());
     if (handle == nullptr) 
     {
@@ -35,9 +35,10 @@ urpc_result_t UrpcDevicePHandleGuard::urpc_send_request(const char cid[URPC_CID_
     uint8_t *response,
     uint8_t response_len)
 {
-    if (_uhandle != nullptr)
-    {
-        std::unique_lock<std::mutex> lck(*pmutex());
+    std::unique_lock<std::mutex> lck(*pmutex());
+	if (_uhandle != nullptr)
+	{
+
         ZF_LOGD("In sending request to handle %u...", _uhandle);
         urpc_result_t result = urpc_device_send_request(_uhandle, cid, request, request_len, response, response_len);
         ZF_LOGD("urpc_device_send_request for handle %u returned %d.", _uhandle, result);
@@ -48,13 +49,13 @@ urpc_result_t UrpcDevicePHandleGuard::urpc_send_request(const char cid[URPC_CID_
 
 void UrpcDevicePHandleGuard::destroy_urpc_h()
 {
-    //std::unique_lock<std::mutex> _lck(*_pmutex);
+	std::unique_lock<std::mutex> _lck(*_pmutex);
     if (_uhandle != nullptr)
     {
        ZF_LOGD("Urpc device handle at destroing %u.", _uhandle);
-        urpc_device_destroy(&_uhandle);
+       urpc_device_destroy(&_uhandle);
        ZF_LOGD("Urpc device handle at destroyed %u.", _uhandle);
-        _uhandle = nullptr;
+       _uhandle = nullptr;
     }
 }
 
@@ -89,9 +90,9 @@ void UrpcDevicePHandleGuard::destroy_mutex()
   _pmutex = nullptr;
 }
 
-void MapSerialUrpc::log()
+void MapSerialUrpc::_log()
 {
-    _rwlock.read_lock();
+    //_rwlock.read_lock();
 
     ZF_LOGD("MapSerialUrpc:");
     for (auto &m : *this)
@@ -105,7 +106,7 @@ void MapSerialUrpc::log()
         ZF_LOGD("conn_id %u - serial %u\n", m.first, m.second);
     }
 
-    _rwlock.read_unlock();
+    //_rwlock.read_unlock();
 }
 
 MapSerialUrpc::~MapSerialUrpc()
@@ -137,77 +138,60 @@ static bool _find_serial(const conn_serial &item, uint32_t serial)
 
 bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
 {
-    _rwlock.read_lock();
+    _rwlock.write_lock();
 
     // first, glance, if any is already in list
     if (std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id)) !=
         _conns.cend())
     {
-        _rwlock.read_unlock();
-        return true;
-    }
-
-    _rwlock.read_unlock();
-    _rwlock.write_lock();
-    MapSerialUrpc::iterator map_it = find(serial);
-
-    /*
-     * the device either create OK or was not created
-     */
-    if (map_it != end())
-    {
-        _conns.insert(_conns.cend(), std::make_pair(conn_id, serial));
         _rwlock.write_unlock();
         return true;
     }
-
+   
     /*
+    * already, first, create connection 
+    */
+     _conns.insert(_conns.cend(), std::make_pair(conn_id, serial));
+	 ZF_LOGD("Add connection %u", conn_id);
+	 _log();
+
+     MapSerialUrpc::iterator map_it = find(serial);
+	    /*
      * pmutex must be created first and guard creation also
      */
-    if (find(serial) == cend())
-    {
-        (*this)[serial].create_mutex(serial); // new map element also created and inserted
-    }
+     if (find(serial) == cend())
+     {
+        (*this)[serial].create_mutex(serial); // new map element also created and inserte
+     }
      _rwlock.write_unlock();
-
-    /*
-     * read lock is off
-     * not created, create now
-     */
-    _rwlock.read_lock();
-    UrpcDevicePHandleGuard &uh = (*this)[serial];
-    if (uh.uhandle() == nullptr && uh.pmutex() != nullptr) // check if someone else already created this
-    {
-        _rwlock.read_unlock();
-        urpc_device_handle_t purpc = nullptr;
-        
-        if (uh.is_locked_in_creating())
+     _rwlock.read_lock();
+     UrpcDevicePHandleGuard &uh = (*this)[serial];
+	 if (uh.pmutex() != nullptr) // check if someone else already created this
+     {
+   		if (uh.uhandle() != nullptr && !uh.is_destroy_flag())
+		{
+			_rwlock.read_unlock();
+			return true;
+		}
+		//
+		_rwlock.read_unlock();
+		urpc_device_handle_t purpc = UrpcDevicePHandleGuard::create_urpc_h(serial, uh.pmutex());
+        _rwlock.write_lock();                              // multithreding !!!
+		if (purpc != nullptr)
+		{
+				(*this)[serial].set_urpc_h(purpc);
+				(*this)[serial].create_mutex(serial);  // could be recreating
+		}
+	     
+        if ((*this)[serial].uhandle() == nullptr)
         {
-            uh.pmutex() -> lock();
-            uh.pmutex()->unlock();
-            return uh.uhandle() != nullptr;
+			_erase_connection_pair(conn_id);
+            //(*this)[serial].destroy_mutex();
+            erase(serial);
         }
-        else
-        {
-            uh.pmutex()->lock();
-            uh.set_locked_action(ast_creating);
-            purpc = UrpcDevicePHandleGuard::create_urpc_h(serial, uh.pmutex());
-            uh.set_locked_action(ast_just_nothing);
-            uh.pmutex()->unlock();
-            _rwlock.write_lock();                              // multithreding !!!
-            if (purpc != nullptr && find(serial) != cend())
-            {
-                (*this)[serial].set_urpc_h(purpc);
-                _conns.insert(_conns.cend(), std::make_pair(conn_id, serial));
-            }
-            if ((*this)[serial].uhandle() == nullptr)
-            {
-                (*this)[serial].destroy_mutex();
-                erase(serial);
-            }
-            _rwlock.write_unlock();
-            return purpc != nullptr;
-        }
+        _rwlock.write_unlock();
+        return purpc != nullptr;
+    
     }
     else
     {
@@ -216,21 +200,32 @@ bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
     }
 }
 
-bool MapSerialUrpc::is_opened_and_valid(uint32_t serial)
+void MapSerialUrpc::_erase_connection_pair(conn_id_t conn_id)
 {
-    bool ret = nullptr;
-    _rwlock.read_lock();
-    if (find(serial) != cend())
-    {
-        ret = (*this)[serial].uhandle() != nullptr;
-    }
-    _rwlock.read_unlock();
-    return ret;
+	if (conn_id != UINT32_MAX)
+	{
+		std::list<conn_serial>::const_iterator it;
+		if ((it = std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id))) !=
+			_conns.cend())
+			_conns.erase(it);
+	}
+}
+
+uint32_t MapSerialUrpc::_count_conns_serial(uint32_t serial)
+{
+	uint32_t count = 0;
+    for (auto it = _conns.cbegin(); it != _conns.cend(); it++)
+	{
+		if (it -> second == serial)
+			count++;
+	}
+	ZF_LOGD("Count of _conns to serial %u = %u", serial, count);
+	return count;
 }
 
 void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_t serial_known, bool force_urpc_remove)
 {
-    if (conn_id == UINT32_MAX && serial_known == UINT32_MAX)
+    if (conn_id == UINT32_MAX)
         return;
     // first check if connection exists (non-deleted earlier) in case of unknown serial (call from catch-block,
     // to minimize catch-block actions) 
@@ -247,85 +242,61 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
     bool destroy_serial = false;
     uint32_t serial = serial_known;
 
-    if (conn_id != UINT32_MAX)   // conn_id is known
-    {
-        // first, find and remove_connection
-        _rwlock.write_lock();
+    // first, find serial
+	_rwlock.read_lock();
 
-        std::list<conn_serial>::const_iterator it;
-        // find the conn_id connection in _conns list of pairs 
-        if ((it = std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id))) !=
+    std::list<conn_serial>::const_iterator it;
+    // find the conn_id connection in _conns list of pairs 
+    if ((it = std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_conn, std::placeholders::_1, conn_id))) !=
             _conns.cend())
-        {
+    {
             if (serial_known == UINT32_MAX)
                 serial = it->second;
-            _conns.erase(it);
-        }
-        _rwlock.write_unlock();
     }
-
-    if (serial == UINT32_MAX) return;
-
-    _rwlock.read_lock();
-
-    if (find(serial) != cend())
-    {
-        UrpcDevicePHandleGuard &uh = (*this)[serial];
-        if ((force_urpc_remove == true) ||
-        // check if there is any device with this serial in the the _conns list of pairs
-            std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial)) ==
-            _conns.cend())
-        {
-            //destroy_serial = true;
-            _rwlock.read_unlock();
-            if (uh.is_locked_in_destroing() )
-            {
-                uh.pmutex() -> lock();
-                uh.pmutex() -> unlock();
-                return;
-            }
-            else
-            { 
-                uh.pmutex() -> lock();
-                uh.set_locked_action(ast_destroing);
-              //  uh.destroy_urpc_h(); 
-                uh.set_locked_action(ast_just_nothing);
-                uh.pmutex() -> unlock();
-            }
-            
-        }
-        else
-        {
-            _rwlock.read_unlock();
-        }
-    }
-    else
-    {
+	
 	_rwlock.read_unlock();
-    }
-    if (!destroy_serial)  return;
+
+	if (serial == UINT32_MAX)
+	{
+		return;
+	}
     _rwlock.write_lock();
-
-    if (find(serial) != cend())
-    {
-        UrpcDevicePHandleGuard uh = (*this)[serial];
-        if (uh.pmutex() != nullptr && uh.uhandle() == nullptr)
-            uh.destroy_mutex();
-        erase(serial);
-    }
-    
-    if (conn_id != UINT32_MAX)
-    {
-        for (auto it = _conns.cbegin(); it != _conns.cend(); it++)
-        {
-            if (it->first == conn_id)
-                _conns.erase(it);
-        }
-    }
-    
-    _rwlock.write_unlock();
+	_erase_connection_pair(conn_id);
+	_rwlock.write_unlock();
+	
+	
+	_rwlock.read_lock();
+	if (find(serial) == cend())
+	{
+		_rwlock.read_unlock();
+		return;
+	}
+	
+    UrpcDevicePHandleGuard &uh = (*this)[serial];
+	if ((force_urpc_remove == true) ||
+		//check if there is any device with this serial in the the _conns list of pairs
+		std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial)) ==
+		_conns.cend())
+	{
+		uh.set_destroy_flag();
+		_rwlock.read_unlock();
+		uh.destroy_urpc_h();
+		_rwlock.write_lock();
+		if (uh.uhandle() == nullptr)
+		{
+			//uh.destroy_mutex();
+			erase(serial);
+			ZF_LOGD("Serial has been destroyed: conn_id - %u serial - %u", conn_id, serial);
+		}
+		else
+			ZF_LOGD("Serial has NOT been destroyed: conn_id - %u serial - %u", conn_id, serial);
+		_log();
+		_rwlock.write_unlock();
+	}
+	else
+		_rwlock.read_unlock();
+	
 }
-
 
 urpc_result_t MapSerialUrpc::operation_urpc_send_request(uint32_t serial,
     const char cid[URPC_CID_SIZE],
@@ -353,3 +324,4 @@ urpc_result_t MapSerialUrpc::operation_urpc_send_request(uint32_t serial,
     }
     return res;
 }
+

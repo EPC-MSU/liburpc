@@ -117,7 +117,7 @@ public:
     }
 };
 
-std::mutex _mtx_open_close;
+// std::mutex _mtx_open_close;
 // ========================================================
 void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
     ZF_LOGD("From %u received packet of length: %lu.", conn_id, data.size());
@@ -162,20 +162,16 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             request_len = data.size() - sizeof(urpc_xinet_common_header_t) - sizeof(cid) - sizeof(response_len);
             std::vector<uint8_t> response(response_len);
 
-            urpc_result_t result = urpc_result_nodevice;
+			urpc_result_t result = msu.operation_urpc_send_request(
+				serial,
+				cid,
+				request_len ? &data[sizeof(urpc_xinet_common_header_t)+sizeof(cid)+sizeof(response_len)] : NULL,
+				(uint8_t)request_len,
+				response.data(),
+				(uint8_t)response_len
+				);
 
-            if (msu.is_opened_and_valid(serial))
-            {
-                result = msu.operation_urpc_send_request(
-                    serial,
-                    cid,
-                    request_len ? &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)] : NULL,
-                    (uint8_t)request_len,
-                    response.data(),
-                    (uint8_t)response_len
-                );
-            }
-            else
+			if (result == urpc_result_nodevice)
             {
                 ZF_LOGE("Request by %d for raw data to not opened or invalid serial, aborting...", conn_id);
             }
@@ -201,7 +197,6 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
         }
         case URPC_OPEN_DEVICE_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received open device request packet.", conn_id );
-            msu.log();
             //_mtx_open_close.lock();
             added = msu.open_if_not(conn_id, serial);
 			//_mtx_open_close.unlock();
@@ -221,7 +216,6 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             {
                 ZF_LOGD("Failed to open device %u, conn_id=%u + ...", serial, conn_id);
             }
-            msu.log();
             break;
         }
         case URPC_CLOSE_DEVICE_REQUEST_PACKET_TYPE: {
@@ -238,11 +232,11 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             // We don’t try to close the device here.
             // It will be closed in the callback_disc() function after the thread termination.
             // Force socket thread final becouse of this exception.
-           ZF_LOGD("Connection or Device removed explicitlywith conn_id=%u + ...", conn_id);
+            ZF_LOGD("Connection or Device removed explicitly with conn_id=%u + ...", conn_id);
 		    //_mtx_open_close.lock();
-		   msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
-		   //_mtx_open_close.unlock();
-		   throw std::runtime_error("Stopping socket_thread");
+		    // msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
+		    //_mtx_open_close.unlock();
+		    throw std::runtime_error("Stopping socket_thread");
             break;
         }
         default: {
@@ -255,11 +249,8 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
 void callback_disc(conn_id_t conn_id) {
 	ZF_LOGD("Catch block start: disconnect conn_id=%u + ...", conn_id);
-	_mtx_open_close.lock();
     msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
-	 _mtx_open_close.unlock();
     ZF_LOGD("Catch block end: disconnect conn_id=%u + ...", conn_id);
-    msu.log();
 }
 
 void print_help(char *argv[], bool print_err)
