@@ -224,7 +224,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
 void callback_disc(conn_id_t conn_id) {
     msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
-    ZF_LOGD("Connection or Device removed in catch block with conn_id=%u + ...", conn_id);
+    ZF_LOGD("Attempt to remove connection or device in catch block with conn_id=%u + ...", conn_id);
     msu.log();
 }
 
