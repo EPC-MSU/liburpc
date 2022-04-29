@@ -9,6 +9,7 @@
 
 std::map<uint32_t, std::mutex *> UrpcDevicePHandleGuard::_mutex_pool;
 std::mutex UrpcDevicePHandleGuard::_mutex_pool_mutex;
+std::mutex MapSerialUrpc::_open_close;
 
 urpc_device_handle_t UrpcDevicePHandleGuard::create_urpc_h(uint32_t serial, std::mutex *pm)
 {
@@ -130,6 +131,8 @@ static bool _find_serial(const conn_serial &item, uint32_t serial)
 
 bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
 {
+    std::unique_lock<std::mutex> _lck(_open_close);
+
     _rwlock.read_lock();
 
     // first, glance, if any is already in list
@@ -195,22 +198,12 @@ bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
     }
 }
 
-bool MapSerialUrpc::is_opened_and_valid(uint32_t serial)
-{
-    bool ret;
-    _rwlock.read_lock();
-    if (find(serial) != cend())
-    {
-        ret = (*this)[serial].uhandle() != nullptr;
-    }
-    _rwlock.read_unlock();
-    return ret;
-}
-
 void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_t serial_known, bool force_urpc_remove)
 {
     if (conn_id == UINT32_MAX && serial_known == UINT32_MAX)
         return;
+
+    std::unique_lock<std::mutex> _lck(_open_close);
 
     bool destroy_serial = false;
     uint32_t serial = serial_known;
@@ -263,15 +256,6 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
         if (uh.pmutex() != nullptr && uh.uhandle() == nullptr)
             uh.destroy_mutex();
         erase(serial);
-    }
-
-    if (conn_id != UINT32_MAX)
-    {
-        for (auto it = _conns.cbegin(); it != _conns.cend(); it++)
-        {
-            if (it->first == conn_id)
-                _conns.erase(it);
-        }
     }
     _rwlock.write_unlock();
 }

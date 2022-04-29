@@ -59,7 +59,7 @@ public:
 private:
 
     static std::mutex _mutex_pool_mutex;
-    static std::map<uint32_t, std::mutex *> _mutex_pool;    
+    static std::map<uint32_t, std::mutex *> _mutex_pool;  
     std::mutex *_pmutex;
     urpc_device_handle_t _uhandle;
 };
@@ -99,11 +99,6 @@ public:
         uint8_t response_len);
 
     /*
-     * Checks if the urpc device is really opened with this serial
-     */
-    bool is_opened_and_valid(uint32_t serial);
-
-    /*
      * Removes connection if any, check if any of the rest of active connections matches the given serial,
      * removes urpc device if no connections exist
      * If force_urpc_remove is on, serial must be known and all associated connections will be removed from
@@ -117,7 +112,7 @@ public:
 
 private:
     ReadWriteLock _rwlock;
-
+    static std::mutex _open_close;
      // spy for tcp-connections
     std::list<conn_serial> _conns;
 };
