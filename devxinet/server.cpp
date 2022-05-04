@@ -199,7 +199,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
         }
         case URPC_CLOSE_DEVICE_REQUEST_PACKET_TYPE: {
             ZF_LOGD( "From %u received close device request packet.", conn_id );
-            msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
+            msu.remove_conn_or_remove_urpc_device(conn_id, serial, false);
             ZF_LOGD("Connection or Device removed ordinary with conn_id=%u + ...", conn_id);
             msu.log();
             DataPacket<URPC_CLOSE_DEVICE_RESPONSE_PACKET_TYPE>
@@ -224,8 +224,6 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 
 void callback_disc(conn_id_t conn_id) {
     msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
-    ZF_LOGD("Attempt to remove connection or device in catch block with conn_id=%u + ...", conn_id);
-    msu.log();
 }
 
 void print_help(char *argv[], bool print_err)
