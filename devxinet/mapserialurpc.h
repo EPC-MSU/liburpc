@@ -8,13 +8,11 @@
 #include "platform.h"
 #include "rw_lock.h"
 
-/*
- * UrpcDevicePHandleGuard - class to contain urpc device handle pointer and its guarding mutex.
+/**
+ * UrpcDevicePHandle - class to contain urpc device handle pointer.
  * An Urpc device handle represents some internal resource associated with the urpc device communcation
  */
- 
-
-class UrpcDevicePHandle {
+ class UrpcDevicePHandle {
 public:
     UrpcDevicePHandle() : _uhandle(nullptr){ }
     /*
@@ -23,7 +21,7 @@ public:
     static urpc_device_handle_t  create_urpc_h(uint32_t serial); // creates urpc device handle
 
     /*
-     * Executes urpc request operation.
+    * Executes urpc request operation.
     */
     urpc_result_t urpc_send_request(const char cid[URPC_CID_SIZE],
         const uint8_t *request,
@@ -34,9 +32,10 @@ public:
     urpc_device_handle_t uhandle() const { return _uhandle; }
 
     /*
-     * Destroys urpc device
+    * Destroys urpc device
     */
     void destroy_urpc_h();
+
     void set_urpc_h(urpc_device_handle_t h) { _uhandle = h; }
 
     UrpcDevicePHandle(const UrpcDevicePHandle &uh)
@@ -65,7 +64,7 @@ conn_serial;
  * Tcp-connections account is made by using of _conns list : to remove urpc device that could not be addressed;
  */
 class MapSerialUrpc : public
-    std::map <uint32_t, UrpcDevicePHandle> // map :serial -> UrpcDevicePHandleGuard
+    std::map <uint32_t, UrpcDevicePHandle> // map :serial -> UrpcDevicePHandle
 
 {
 public:

@@ -206,13 +206,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                     response_packet(conn_id, serial);
             response_packet.send_data();
             ZF_LOGD( "To connection %u close device response packet sent.", conn_id);
-
-            /*!!! to delete this comments */
-            // We don’t try to close the device here.
-            // It will be closed in the callback_disc() function after the thread termination.
-            // Force socket thread final becouse of this exception.
-            //throw std::runtime_error("Stopping socket_thread");
-            break;
+			break;
         }
         default: {
             ZF_LOGD( "Unknown packet code." );
@@ -223,6 +217,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 // ========================================================
 
 void callback_disc(conn_id_t conn_id) {
+	// if there is an ordinary case - no connection to process in server structures (it is all alredy done); if there ia an extra case - the connection will be deleted here  
     msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
 }
 

@@ -15,7 +15,8 @@ urpc_device_handle_t UrpcDevicePHandle::create_urpc_h(uint32_t serial)
     const std::string addr = serial_to_address(serial);
     ZF_LOGD("Open device %u.", serial);
     urpc_device_handle_t handle = urpc_device_create(addr.c_str());
-    if (handle == nullptr) {
+    if (handle == nullptr) 
+	{
         ZF_LOGE("Can\'t open device %s.", addr.c_str());
     }
     return handle;
@@ -213,7 +214,7 @@ bool MapSerialUrpc::open_if_not(conn_id_t conn_id, uint32_t serial)
 
 void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_t serial_known, bool force_urpc_remove)
 {
-        // first, find and remove_connection
+    // first, find and remove_connection
     uint32_t serial_real = UINT32_MAX;
     bool destroy_serial = false;
     if (force_urpc_remove == true || _is_actual_connection(conn_id, &serial_real)) return;
@@ -238,16 +239,19 @@ void MapSerialUrpc::remove_conn_or_remove_urpc_device(conn_id_t conn_id, uint32_
         UrpcDevicePHandle &uh = (*this)[serial_known];
         if ((force_urpc_remove == true) ||
         // check if there is any device with this serial in the the _conns list of pairs
-            std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial_known)) ==
-            _conns.cend())
+           std::find_if(_conns.cbegin(), _conns.cend(), std::bind(_find_serial, std::placeholders::_1, serial_known)) ==
+           _conns.cend())
         {
             destroy_serial = true;
             _rwlock.read_unlock();
             ZF_LOGD("Close device %u.", serial_known);
             uh.destroy_urpc_h();
         }
-		else 
+		else
+		{
+
 			_rwlock.read_unlock();
+		}
     }
     else
     {
