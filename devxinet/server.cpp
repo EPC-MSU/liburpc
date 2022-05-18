@@ -223,8 +223,11 @@ void callback_disc(conn_id_t conn_id) {
 
 void print_help(char *argv[], bool print_err)
 {
-	if (print_err)
-		std::cout << "ERROR: no valid sqlite key file provided" << std::endl;
+    if (print_err)
+    {
+        std::cout << "ERROR: no valid sqlite key file provided" << std::endl
+                  << "Relaunch the server with correct keyfile argument for normal operation" << std::endl;
+    }
 #if ZF_LOG_LEVEL <= ZF_LOG_DEBUG
     std::cout << 
         "Usage: " << argv[0] << " keyfile [debug]"
@@ -239,6 +242,9 @@ void print_help(char *argv[], bool print_err)
 		<< "Examples: " << std::endl
 		<< argv[0] << " ~/keyfile.sqlite" << std::endl;
 #endif
+
+    std::cout << "Press a key to exit" << std::endl;
+        
 }
 
 #if not defined(WIN32) && not defined(WIN64)
@@ -296,7 +302,8 @@ int main(int argc, char *argv[])
 		{
 			char *s = argv[1];
             strlwr(s);
-			if (strcmp(s, "-help") != 0 && strcmp(s, "help") != 0
+            if (strcmp(s, "debug") == 0) argc--;
+			else if (strcmp(s, "-help") != 0 && strcmp(s, "help") != 0
 				&& strcmp(s, "--help") != 0 && strcmp(s, "-h") != 0
 				&& strcmp(s, "--h") != 0)
 				exit = false;
