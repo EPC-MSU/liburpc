@@ -13,7 +13,7 @@
     #include "devserial/devserial.h"
 #endif
 #ifdef URPC_ENABLE_XINET
-    #include "devxinet/devxinet.h"
+#include <client/xibridge.h>
 #endif
 #ifdef URPC_ENABLE_UDP
     #include "devudp/devudp.h"
@@ -60,7 +60,7 @@ struct urpc_device_t
         struct urpc_device_serial_t *serial;
         #endif
         #ifdef URPC_ENABLE_XINET
-        struct urpc_device_xinet_t *xinet;
+        struct xibridge_conn_t *xinet;
         #endif
         #ifdef URPC_ENABLE_UDP
         struct urpc_device_udp_t *udp;
@@ -148,7 +148,8 @@ urpc_device_create(
             #endif
             #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
-            if ((device->impl.xinet = urpc_device_xinet_create(parsed_uri.host, parsed_uri.path)) == NULL)
+			device->impl.xinet = malloc(sizeof( xibridge_conn_t));
+			if (xibridge_open_device_connection(uri, device->impl.xinet) != 0)
             {
                 ZF_LOGE("failed to create xinet device");
                 goto device_impl_create_failed;
@@ -219,7 +220,7 @@ urpc_result_t urpc_device_send_request(
             #endif
             #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
-            result = urpc_device_xinet_send_request(device->impl.xinet, cid, request, request_len, response, response_len);
+            result = xibridge_request_reponse(device->impl.xinet, cid, request, request_len, response, response_len);
             break;
             #endif
             #ifdef URPC_ENABLE_UDP
@@ -274,7 +275,8 @@ urpc_result_t urpc_device_destroy(
             #endif
             #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
-            result = urpc_device_xinet_destroy(&device->impl.xinet);
+			result = xibridge_close_device_connection(device->impl.xinet);
+			free(device->impl.xinet);
             break;
             #endif
             #ifdef URPC_ENABLE_UDP
