@@ -13,7 +13,7 @@
     #include "devserial/devserial.h"
 #endif
 #ifdef URPC_ENABLE_XINET
-#include <client/xibridge.h>
+#include "xibridge.h"
 #endif
 #ifdef URPC_ENABLE_UDP
     #include "devudp/devudp.h"
@@ -220,7 +220,7 @@ urpc_result_t urpc_device_send_request(
             #endif
             #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
-            result = xibridge_request_reponse(device->impl.xinet, cid, request, request_len, response, response_len);
+            result = (urpc_result_t)xibridge_request_reponse(device->impl.xinet, cid, request, request_len, response, response_len);
             break;
             #endif
             #ifdef URPC_ENABLE_UDP

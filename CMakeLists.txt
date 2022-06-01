@@ -5,6 +5,7 @@ PROJECT(urpc)
 OPTION(URPC_ENABLE_SERIAL "Enable serial port devices support" ON)
 OPTION(URPC_ENABLE_XINET "Enable network devices support via bindy/cryptopp" ON)
 OPTION(URPC_ENABLE_UDP "Enable UDP adapter devices support" ON)
+OPTION(XIBRIDGE_ENABLE "Enable xibridge" ON)
 
 IF(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
     # It is required to build a rpath framework
@@ -85,23 +86,29 @@ IF(URPC_ENABLE_SERIAL)
     TARGET_LINK_LIBRARIES(urpc urpc-serial)
 ENDIF()
 
-IF(URPC_ENABLE_XINET)
-    #ADD_SUBDIRECTORY(devxinet)
-    #TARGET_LINK_LIBRARIES(urpc urpc-xinet)
-	# Findy shared bindy library in XIBRIDGE_PATH
-find_path(XIBRIDGE_INCLUDE_DIR xibridge.h PATHS ${XIBRIDGE_PATH}/client)
-find_library(XIBRIDGE_LIBRARY NAMES xibridge PATHS ${XIBRIDGE_PATH}/build/Debug ${XIBRIDGE_PATH}/build/Release)
-include(FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(XIBRIDGE DEFAULT_MSG XIBRIDGE_INCLUDE_DIR XIBRIDGE_LIBRARY)
-mark_as_advanced(XIBRIDGE_INCLUDE_DIR XIBRIDGE_LIBRARY)
-
-if(NOT XIBRIDGE_FOUND)
-	message(FATAL_ERROR "xibridge could not be found in XIBRIDGE_PATH")
-endif()
-	
-ENDIF()
-
 IF(URPC_ENABLE_UDP)
     ADD_SUBDIRECTORY(devudp)
     TARGET_LINK_LIBRARIES(urpc urpc-udp)
 ENDIF()
+
+IF(URPC_ENABLE_XINET)
+   IF (XIBRIDGE_ENABLE)
+      find_path(XIBRIDGE_INCLUDE_DIR xibridge.h PATHS ${XIBRIDGE_PATH}/client)
+      find_library(XIBRIDGE_LIBRARY NAMES xibridge PATHS ${XIBRIDGE_PATH}/build/Debug ${XIBRIDGE_PATH}/build/Release)
+       include(FindPackageHandleStandardArgs)
+      FIND_PACKAGE_HANDLE_STANDARD_ARGS(XIBRIDGE DEFAULT_MSG XIBRIDGE_INCLUDE_DIR XIBRIDGE_LIBRARY)
+      mark_as_advanced(XIBRIDGE_INCLUDE_DIR XIBRIDGE_LIBRARY)
+      if(NOT XIBRIDGE_FOUND)
+	     message(FATAL_ERROR "xibridge could not be found in XIBRIDGE_PATH")
+      else ()
+	     include_directories(${XIBRIDGE_INCLUDE_DIR})
+         target_link_libraries(urpc ${XIBRIDGE_LIBRARY})
+	  endif()	 
+    ENDIF()	  
+ELSE()
+    ADD_SUBDIRECTORY(devxinet)
+    TARGET_LINK_LIBRARIES(urpc urpc-xinet)
+ENDIF()
+
+
+ 
