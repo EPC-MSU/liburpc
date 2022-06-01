@@ -7,6 +7,10 @@ OPTION(URPC_ENABLE_XINET "Enable network devices support via bindy/cryptopp" ON)
 OPTION(URPC_ENABLE_UDP "Enable UDP adapter devices support" ON)
 OPTION(XIBRIDGE_ENABLE "Enable xibridge" ON)
 
+if (XIBRIDGE_ENABLE)
+SET(XIBRIDGE_PATH "c:/projects/xibridge")
+endif()
+
 IF(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
     # It is required to build a rpath framework
     CMAKE_POLICY(SET CMP0042 NEW)
