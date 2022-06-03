@@ -215,6 +215,14 @@ urpc_result_t urpc_device_send_request(
 
     urpc_result_t result;
 
+#ifdef URPC_ENABLE_XINET
+#ifdef  XIBRIDGE_ENABLE
+    uint8_t *full_req;
+    uint8_t *full_data;
+    uint32_t  xi_res;
+#endif
+#endif
+
     if (urpc_synchronizer_acquire(device->sync) != 0)
     {
         ZF_LOGE("can't acquire device lock");
@@ -231,7 +239,16 @@ urpc_result_t urpc_device_send_request(
             #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
             #ifdef XIBRIDGE_ENABLE
-            result = (urpc_result_t)xibridge_request_reponse(device->impl.xinet, cid, request, request_len, response, response_len);
+            result = urpc_result_error;
+            full_req = malloc(request_len + URPC_CID_SIZE);
+            memcpy(full_req, cid, URPC_CID_SIZE);
+            if (request_len) memcpy(full_req + URPC_CID_SIZE, request, request_len);
+            full_data = malloc(response_len + sizeof(uint32_t));
+            xi_res = (urpc_result_t)xibridge_device_request_response(device->impl.xinet, full_req, (uint32_t)(request_len+URPC_CID_SIZE), full_data, (uint32_t)(response_len + sizeof(uint32_t)));
+            if (xi_res == 0) result = (urpc_result_t)(*full_data);
+            if (response_len) memcpy(response, full_data + sizeof(uint32_t), response_len);
+            free(full_data);
+            free(full_req);
             #else
             result = urpc_device_xinet_send_request(device->impl.xinet, cid, request, request_len, response, response_len);
             #endif
@@ -290,7 +307,9 @@ urpc_result_t urpc_device_destroy(
             #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
             #ifdef XIBRIDGE_ENABLE
-			result = xibridge_close_device_connection(device->impl.xinet);
+            result = urpc_result_ok;
+			if (xibridge_close_device_connection(device->impl.xinet) != 0)
+                result = urpc_result_error;
             free(device->impl.xinet);
             #else
             result = urpc_device_xinet_destroy(&device->impl.xinet);
