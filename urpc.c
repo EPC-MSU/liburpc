@@ -245,7 +245,7 @@ urpc_result_t urpc_device_send_request(
             if (request_len) memcpy(full_req + URPC_CID_SIZE, request, request_len);
             full_data = malloc(response_len + sizeof(uint32_t));
             xi_res = (urpc_result_t)xibridge_device_request_response(device->impl.xinet, full_req, (uint32_t)(request_len+URPC_CID_SIZE), full_data, (uint32_t)(response_len + sizeof(uint32_t)));
-            if (xi_res == 0) result = (urpc_result_t)(*full_data);
+            if (xi_res == 0) result = *(urpc_result_t *)((uint32_t *)(full_data));
             if (response_len) memcpy(response, full_data + sizeof(uint32_t), response_len);
             free(full_data);
             free(full_req);
