@@ -45,6 +45,10 @@ target_include_directories(urpc PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated/pub
 # make available to all dev* submodules
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/generated/public)
 
+if(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
+   add_definitions( -D_CRT_SECURE_NO_WARNINGS) 
+endif()
+
 IF(BUILD_SHARED_LIBS)
     SET_TARGET_PROPERTIES(urpc PROPERTIES C_VISIBILITY_PRESET hidden)
     SET_TARGET_PROPERTIES(urpc PROPERTIES CXX_VISIBILITY_PRESET hidden)

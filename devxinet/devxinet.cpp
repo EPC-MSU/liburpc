@@ -275,7 +275,7 @@ public:
         write_uint32(&request_buffer.at(4), URPC_OPEN_DEVICE_REQUEST_PACKET_TYPE);
         write_uint32(&request_buffer.at(12), serial);
 
-        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "requesting server to open device with serial %" PRIX32 "... ", serial);
+        ZF_LOGD_MEM(request_buffer.data(), (unsigned int)request_buffer.size(), "requesting server to open device with serial %" PRIX32 "... ", serial);
         std::vector<uint8_t> response = conn->send_request_and_wait_response(request_buffer);
         bool opened = response.at(27) != 0;
         if(!opened)
@@ -283,7 +283,7 @@ public:
             ZF_LOGE("server failed to open device with serial %" PRIX32 "!", serial);
             throw DeviceLost("");
         }
-        ZF_LOGD_MEM(response.data(), response.size(), "server has successfully opened device with serial %" PRIX32 "!", serial);
+        ZF_LOGD_MEM(response.data(), (unsigned int)response.size(), "server has successfully opened device with serial %" PRIX32 "!", serial);
 
         this->conn = conn;
         this->serial = serial;
@@ -308,7 +308,7 @@ public:
         // Pack request data
         std::copy(request, request+request_len, request_buffer.begin()+sizeof(urpc_xinet_common_header_t)+4+URPC_CID_SIZE);
 
-        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "executing request to device with serial %" PRIX32 "... ", serial);
+        ZF_LOGD_MEM(request_buffer.data(), (unsigned int)request_buffer.size(), "executing request to device with serial %" PRIX32 "... ", serial);
         std::vector<uint8_t> response_buffer = this->conn->send_request_and_wait_response(request_buffer);
 
         uint32_t response_packet_type;
@@ -329,7 +329,7 @@ public:
                 throw DeviceLost("");
             }
         }
-        ZF_LOGD_MEM(request_buffer.data(), request_buffer.size(), "request to device with serial %" PRIX32 " has been successfully executed!", serial);
+        ZF_LOGD_MEM(request_buffer.data(), (unsigned int)request_buffer.size(), "request to device with serial %" PRIX32 " has been successfully executed!", serial);
         return (urpc_result_t)status;
     }
 
