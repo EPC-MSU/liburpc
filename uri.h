@@ -7,7 +7,7 @@
 
 
 #ifdef _MSC_VER
-    #define _CRT_SECURE_NO_WARNINGS
+    // #define _CRT_SECURE_NO_WARNINGS
     #define portable_strcasecmp _stricmp
 #else
     #define portable_strcasecmp strcasecmp

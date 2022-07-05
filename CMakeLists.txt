@@ -37,7 +37,9 @@ endif()
 ADD_LIBRARY(urpc urpc.c uri.c synchronizer.c)
 CONFIGURE_FILE(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/generated/private/config.h)
 target_include_directories(urpc PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated/private)
-
+IF(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
+   ADD_DEFINITIONS(-D_CRT_SECURE_NO_WARNINGS)
+ENDIF()   
 INCLUDE(GenerateExportHeader)
 GENERATE_EXPORT_HEADER(urpc EXPORT_MACRO_NAME URPC_API_EXPORT EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/generated/public/urpc_export.h)
 # make available to all dependants

@@ -44,7 +44,7 @@ int buffer_pop(buffer_t *buffer, char *data, size_t *size)
         *size = buffer_size(buffer);
     }
 
-    if (*size < BUFFER_SIZE - buffer->begin) // just pop from the front
+    if (*size < (size_t)(BUFFER_SIZE - buffer->begin)) // just pop from the front
     {
         memcpy(data, buffer->buffer + buffer->begin, *size);
     }
