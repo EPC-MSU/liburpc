@@ -157,7 +157,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             uint32_t response_len;
             read_uint32(&response_len, &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid)]);
 
-            unsigned long int request_len;
+            size_t request_len;
             request_len = data.size() - sizeof(urpc_xinet_common_header_t) - sizeof(cid) - sizeof(response_len);
             std::vector<uint8_t> response(response_len);
 
