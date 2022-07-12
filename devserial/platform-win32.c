@@ -120,7 +120,7 @@ urpc_result_t urpc_read_serial_port(
     size_t *amount
 )
 {
-    DWORD want_to_read = *amount;
+    DWORD want_to_read = (DWORD)*amount;
     DWORD actually_read;
     if (TRUE != ReadFile(handle, buf, (DWORD)want_to_read, &actually_read, NULL))
     {
@@ -137,7 +137,7 @@ urpc_result_t urpc_serial_port_write(
     size_t *amount
 )
 {
-    DWORD want_to_write = *amount;
+    DWORD want_to_write = (DWORD)*amount;
     DWORD actually_written;
     if (TRUE != WriteFile(handle, buf, (DWORD)want_to_write, &actually_written, NULL))
     {

@@ -32,7 +32,7 @@ int buffer_push(buffer_t *buffer, const char *data, size_t size)
         memcpy(buffer->buffer + buffer->end, data, tail);
         memcpy(buffer->buffer, data + tail, size - tail);
     }
-    buffer->end += size;
+    buffer->end += (uint16_t)size;
 
     return BUFFER_OK;
 }
@@ -54,7 +54,7 @@ int buffer_pop(buffer_t *buffer, char *data, size_t *size)
         memcpy(data, buffer->buffer + buffer->begin, tail);
         memcpy(data + tail, buffer->buffer, *size - tail);
     }
-    buffer->begin += *size;
+    buffer->begin += (uint16_t)*size;
     return BUFFER_OK;
 }
 

@@ -100,7 +100,7 @@ static int command_port_receive(urpc_handle_t handle, uint8_t *response, size_t 
 
         k += amount;
     }
-    ZF_LOGD_MEM(response, response_len, "response ");
+    ZF_LOGD_MEM(response, (unsigned int)response_len, "response ");
 
     return urpc_result_ok;
 }
