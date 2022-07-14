@@ -8,7 +8,7 @@
 #include <functional>
 #include <ctype.h>
 
-#if not defined(WIN32) && not defined(WIN64)
+#ifndef _WIN32 
   #include <execinfo.h>
   #include <signal.h>
 #endif
@@ -157,7 +157,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
             uint32_t response_len;
             read_uint32(&response_len, &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid)]);
 
-            unsigned long int request_len;
+            size_t request_len;
             request_len = data.size() - sizeof(urpc_xinet_common_header_t) - sizeof(cid) - sizeof(response_len);
             std::vector<uint8_t> response(response_len);
 
@@ -165,9 +165,9 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                     serial,
                     cid,
                     request_len ? &data[sizeof(urpc_xinet_common_header_t) + sizeof(cid) + sizeof(response_len)] : NULL,
-                    request_len,
+                    (uint8_t)request_len,
                     response.data(),
-                    response_len
+                    (uint8_t)response_len
                 );
                       
             DataPacket<URPC_COMMAND_RESPONSE_PACKET_TYPE>
@@ -247,7 +247,7 @@ void print_help(char *argv[], bool print_err)
         
 }
 
-#if not defined(WIN32) && not defined(WIN64)
+#ifndef _WIN32
 void handler(int sig) {
   void *array[10];
   size_t size;
@@ -262,9 +262,10 @@ void handler(int sig) {
   ZF_LOGE("End of stack trace.");
   exit(1);
 }
+#endif
 
 //the next function id not C standard, not supported in non win, the next is manual definition  
-char *strlwr(char *str)
+char *strlwr_portable(char *str)
 {
     unsigned char *p = (unsigned char *)str;
 
@@ -275,7 +276,7 @@ char *strlwr(char *str)
 
     return str;
 }
-#endif
+
 
 ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
 
@@ -284,8 +285,8 @@ ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
 int main(int argc, char *argv[])
 {
     
-#if not defined(WIN32) && not defined(WIN64)
-    signal(SIGSEGV, handler);   // install our handler  
+#ifndef _WIN32
+	signal(SIGSEGV, handler);   // install our handler  
 #endif
     std::cout << "=== uRPC XiNet Server "
               << URPC_XINET_VERSION_MAJOR << "."
@@ -301,7 +302,7 @@ int main(int argc, char *argv[])
 		if (argc == 2)
 		{
 			char *s = argv[1];
-            strlwr(s);
+            strlwr_portable(s);
             if (strcmp(s, "debug") == 0) argc--;
 			else if (strcmp(s, "-help") != 0 && strcmp(s, "help") != 0
 				&& strcmp(s, "--help") != 0 && strcmp(s, "-h") != 0
@@ -326,7 +327,7 @@ int main(int argc, char *argv[])
 
     if (argc > 2)
     {
-        strlwr(argv[2]);
+        strlwr_portable(argv[2]);
         if (strcmp(argv[2], "debug") == 0)
         {
             zf_log_set_output_level(ZF_LOG_DEBUG);
