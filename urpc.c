@@ -15,6 +15,8 @@
 #ifdef URPC_ENABLE_XINET
   #ifdef XIBRIDGE_ENABLE
       #include "xibridge.h"
+  #else
+       #include "devxinet/devxinet.h"	  
   #endif
 #endif
 #ifdef URPC_ENABLE_UDP
