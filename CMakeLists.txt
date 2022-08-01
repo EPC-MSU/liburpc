@@ -72,6 +72,12 @@ ADD_SUBDIRECTORY_ZF_LOG()
 INCLUDE_DIRECTORIES(vendor/zf_log/zf_log)
 TARGET_LINK_LIBRARIES(urpc zf_log)
 
+if(MSVC)
+     target_compile_options(urpc PRIVATE /W3 /WX)
+else()
+     target_compile_options(urpc PRIVATE -Wall -Wextra -Werror)
+endif()
+
 FUNCTION(ADD_SUBDIRECTORY_TINYCTHREAD)
     SET(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
     SET(TINYCTHREAD_DISABLE_TESTS ON CACHE INTERNAL "")
