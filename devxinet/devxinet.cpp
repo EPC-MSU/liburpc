@@ -51,12 +51,12 @@ friend class BindyWrapperSingleton;
 private:
     std::mutex mutex;
     bindy::Bindy *bindy;
-    bool message_really_arrived;
-    // handle "spurious wakeup" problem
+     // handle "spurious wakeup" problem
     std::condition_variable connection_activity;
     std::vector<uint8_t> last_message;
-    bool connection_lost;
     const conn_id_t conn_id;
+    bool message_really_arrived;
+    bool connection_lost;
 
     explicit ConnectionDuctTape(bindy::Bindy *bindy, conn_id_t conn_id): bindy(bindy), conn_id(conn_id), message_really_arrived(false), connection_lost(false) {};
 
@@ -249,7 +249,7 @@ public:
         {
             throw std::runtime_error("");
         }
-        auto conn = std::shared_ptr<ConnectionDuctTape>(new ConnectionDuctTape(this->bindy, conn_id), [this, conn_id](ConnectionDuctTape *conn) {
+        auto conn = std::shared_ptr<ConnectionDuctTape>(new ConnectionDuctTape(this->bindy, conn_id), [this, conn_id](ConnectionDuctTape *) {
             this->bindy->disconnect(conn_id);
         });
         this->conn_data_by_conn_id[conn_id] = conn;
