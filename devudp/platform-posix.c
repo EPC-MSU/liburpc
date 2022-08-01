@@ -55,10 +55,10 @@ urpc_udp_port_close(
 }
 
 urpc_result_t
-urpc_udp_port_flush(
-    urpc_handle_t handle
-)
+urpc_udp_port_flush(urpc_handle_t handle
+   )
 {
+    (void)handle; // to avoid warinig of unused par
     return urpc_result_ok;
 }
 
@@ -87,7 +87,7 @@ urpc_read_udp_port(
     size_t *amount
 )
 {
-    int addrlen = sizeof(handle.addr);
+    socklen_t addrlen = (socklen_t)sizeof(handle.addr);
     struct sockaddr addr;
     memcpy(&addr, &handle.addr, sizeof(handle.addr));
 
@@ -104,7 +104,7 @@ urpc_read_udp_port(
         
         return urpc_result_error;
     }
-    if (res > *amount)
+    if (res > (int)*amount)
     {
         ZF_LOGE("too many data received from socket");
         return urpc_result_error;
