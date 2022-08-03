@@ -70,7 +70,6 @@ int urpc_synchronizer_acquire(
         return 1;
     }
 
-    assert(s->acquire_counter >= 0);
     s->acquire_counter++;
     return 0;
 }
