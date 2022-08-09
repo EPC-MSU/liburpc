@@ -7,10 +7,6 @@ OPTION(URPC_ENABLE_XINET "Enable network devices support via bindy/cryptopp" ON)
 OPTION(URPC_ENABLE_UDP "Enable UDP adapter devices support" ON)
 OPTION(XIBRIDGE_ENABLE "Enable xibridge" OFF)
 
-if (XIBRIDGE_ENABLE)
-SET(XIBRIDGE_PATH "c:/Projects/xibridge")
-endif()
-
 IF(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
     # It is required to build a rpath framework
     CMAKE_POLICY(SET CMP0042 NEW)
@@ -106,8 +102,8 @@ ENDIF()
 IF(URPC_ENABLE_XINET)
    IF (XIBRIDGE_ENABLE)
       # way 1 
-	  find_path(XIBRIDGE_INCLUDE_DIR xibridge.h PATHS ${XIBRIDGE_PATH}/client)
-      find_library(XIBRIDGE_LIBRARY NAMES xibridge PATHS ${XIBRIDGE_PATH}/Debug ${XIBRIDGE_PATH}/Release)
+	  find_path(XIBRIDGE_INCLUDE_DIR xibridge.h PATHS ${XIBRIDGE_PATH})
+      find_library(XIBRIDGE_LIBRARY NAMES xibridge PATHS  ${XIBRIDGE_PATH} ${XIBRIDGE_PATH}/Debug ${XIBRIDGE_PATH}/Release)
       include(FindPackageHandleStandardArgs)
       FIND_PACKAGE_HANDLE_STANDARD_ARGS(XIBRIDGE DEFAULT_MSG XIBRIDGE_INCLUDE_DIR XIBRIDGE_LIBRARY)
       mark_as_advanced(XIBRIDGE_INCLUDE_DIR XIBRIDGE_LIBRARY)
