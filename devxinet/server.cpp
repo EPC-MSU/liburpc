@@ -230,9 +230,11 @@ void print_help(char *argv[], bool print_err)
     }
 #if ZF_LOG_LEVEL <= ZF_LOG_DEBUG
     std::cout << 
-        "Usage: " << argv[0] << " keyfile [debug]"
+        "Usage: " << argv[0] << " [keyfile] [debug]"
         << std::endl
         << "Examples: " << std::endl
+        << argv[0] << std::endl 
+        << argv[0] << " debug" << std::endl
         << argv[0] << " ~/keyfile.sqlite" << std::endl
         << argv[0] << " ~/keyfile.sqlite debug" << std::endl
         << "Debug logging will be disabled by default" << std::endl;
@@ -240,6 +242,7 @@ void print_help(char *argv[], bool print_err)
 	std::cout << "Usage: " << argv[0] << " keyfile"
 		<< std::endl
 		<< "Examples: " << std::endl
+        << argv[0] << std::endl 
 		<< argv[0] << " ~/keyfile.sqlite" << std::endl;
 #endif
 
@@ -293,30 +296,28 @@ int main(int argc, char *argv[])
               << URPC_XINET_VERSION_MINOR << "."
               << URPC_XINET_VERSION_BUGFIX << " "
               << "===" << std::endl;
-
-    // if params count is not enough or there is just one param - debug
-    // server can not start
-	if (argc < 3)
+	
+    bool exit = false;
+    if (argc > 1)
     {
-		bool exit = true;
-		if (argc == 2)
-		{
-			char *s = argv[1];
+        for (int i = 1; i < argc; i++)
+        {
+            //if any param is something like "help" 
+            char *s = argv[i];
             strlwr_portable(s);
-            if (strcmp(s, "debug") == 0) argc--;
-			else if (strcmp(s, "-help") != 0 && strcmp(s, "help") != 0
-				&& strcmp(s, "--help") != 0 && strcmp(s, "-h") != 0
-				&& strcmp(s, "--h") != 0)
-				exit = false;
-		}
-		if (exit)
-		{
-			print_help(argv, argc < 2);
-			std::cin.get(); // To avoid console closing
-			return 0;
-		}
+            if (strcmp(s, "-help") == 0 || strcmp(s, "help") == 0
+                || strcmp(s, "--help") == 0 || strcmp(s, "-h") == 0
+                || strcmp(s, "--h") == 0)
+                exit = true;
+        }
     }
-
+    if (exit)
+    {
+        print_help(argv, argc < 2);
+        std::cin.get(); // To avoid console closing
+        return 0;
+    }
+    
     int res = initialization();
     if (res)
     {
@@ -324,11 +325,11 @@ int main(int argc, char *argv[])
     }
 
     zf_log_set_output_level(ZF_LOG_WARN);
-
-    if (argc > 2)
+    bool is_keyfile_supplied = false;
+    if (argc > 1)
     {
-        strlwr_portable(argv[2]);
-        if (strcmp(argv[2], "debug") == 0)
+        strlwr_portable(argv[1]);
+        if (!(is_keyfile_supplied = strcmp(argv[1], "debug") != 0) || (argc > 2 && strcmp(argv[2], "debug") == 0))
         {
             zf_log_set_output_level(ZF_LOG_DEBUG);
         }
@@ -336,7 +337,8 @@ int main(int argc, char *argv[])
     
     try
     {
-        bindy::Bindy bindy(argv[1], true, false);
+        
+        bindy::Bindy bindy(is_keyfile_supplied ? argv[1] : "", true, false);
         pb = &bindy;
 
 #ifdef ENABLE_SUPERVISOR
