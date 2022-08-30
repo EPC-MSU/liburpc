@@ -11,8 +11,8 @@ typedef struct urpc_device_t *urpc_device_handle_t;
 typedef int urpc_result_t;
 
 #define URPC_XINET_VERSION_MAJOR  1
-#define URPC_XINET_VERSION_MINOR  0
-#define URPC_XINET_VERSION_BUGFIX 3
+#define URPC_XINET_VERSION_MINOR  1
+#define URPC_XINET_VERSION_BUGFIX 0
 
 #define URPC_CID_SIZE 4
 #define URPC_CRC_SIZE 2
