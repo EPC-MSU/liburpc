@@ -4,6 +4,3 @@
 [submodule "vendor/tinycthread"]
 	path = vendor/tinycthread
 	url = https://github.com/tinycthread/tinycthread.git
-[submodule "devxinet/vendor/bindy"]
-	path = devxinet/vendor/bindy
-	url = https://github.com/epc-msu/Bindy
