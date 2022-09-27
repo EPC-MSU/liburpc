@@ -11,7 +11,10 @@
 #ifndef _WIN32 
   #include <execinfo.h>
   #include <signal.h>
+#else
+  //
 #endif
+
 
 /*
  * Supervisor option.
@@ -265,6 +268,49 @@ void handler(int sig) {
   ZF_LOGE("End of stack trace.");
   exit(1);
 }
+
+#include <sys/types.h>
+#include <unistd.h>
+#include <sstream>
+
+bool is_already_started()
+{
+    // get this process pid
+    pid_t pid = getpid();
+
+    // compose a bash command that:
+    // check if another process with the same name 
+    // but with different pid is running
+    std::stringstream command;
+    command << "ps -eo pid,comm | grep urpc_xinet_server | grep -v " << pid;
+    int isRuning = system(command.str().c_str());
+    if (isRuning == 0) {
+        std::cout << "Another process (urpc_xinet_server) already running. Press a key to exit!" << std::endl;
+        std::cin.get(); // To avoid console closing
+        return true;
+    }
+    return false;
+}
+#else
+static HANDLE _h_already_started;
+bool is_already_started()
+{
+    const char szUniqueNamedMutex[] = "urpc_xinet_server_m";
+    _h_already_started = CreateMutex(NULL, TRUE, szUniqueNamedMutex);
+    if (ERROR_ALREADY_EXISTS == GetLastError())
+    {
+        std::cout << "Another process (urpc_xinet_server) already running. Press a key to exit!" << std::endl;
+        std::cin.get(); // To avoid console closing
+        return true;
+    }
+    return false;
+}
+
+void release_already_started_mutex()
+{
+    ReleaseMutex(_h_already_started); // Explicitly release mutex
+    CloseHandle(_h_already_started); // close handle before terminating
+}
 #endif
 
 //the next function id not C standard, not supported in non win, the next is manual definition  
@@ -287,7 +333,9 @@ ZF_LOG_DEFINE_GLOBAL_OUTPUT_LEVEL;
 
 int main(int argc, char *argv[])
 {
-    
+
+    if (is_already_started())
+        return 0;
 #ifndef _WIN32
 	signal(SIGSEGV, handler);   // install our handler  
 #endif
@@ -315,12 +363,18 @@ int main(int argc, char *argv[])
     {
         print_help(argv, argc < 2);
         std::cin.get(); // To avoid console closing
+#ifdef _WIN32
+        release_already_started_mutex();
+#endif
         return 0;
     }
     
     int res = initialization();
     if (res)
     {
+#ifdef _WIN32
+        release_already_started_mutex();
+#endif
         return res;
     }
 
@@ -355,6 +409,9 @@ int main(int argc, char *argv[])
             else
             {
                 print_help(argv);
+#ifdef _WIN32
+                release_already_started_mutex();
+#endif
                 return 0;
             }
         }
@@ -375,5 +432,8 @@ int main(int argc, char *argv[])
         std::cout << "Exception catched: " << ex.what() << std::endl
                   << "Server stopped" << std::endl;
     }
+#ifdef _WIN32
+    release_already_started_mutex();
+#endif
     return 0;
 }
