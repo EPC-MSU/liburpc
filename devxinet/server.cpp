@@ -224,13 +224,8 @@ void callback_disc(conn_id_t conn_id) {
     msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
 }
 
-void print_help(char *argv[], bool print_err)
+void print_help(char *argv[])
 {
-    if (print_err)
-    {
-        std::cout << "ERROR: no valid sqlite key file provided" << std::endl
-                  << "Relaunch the server with correct keyfile argument for normal operation" << std::endl;
-    }
 #if ZF_LOG_LEVEL <= ZF_LOG_DEBUG
     std::cout << 
         "Usage: " << argv[0] << " [keyfile] [debug]"
@@ -361,7 +356,7 @@ int main(int argc, char *argv[])
     }
     if (exit)
     {
-        print_help(argv, argc < 2);
+        print_help(argv);
         std::cin.get(); // To avoid console closing
 #ifdef _WIN32
         release_already_started_mutex();
