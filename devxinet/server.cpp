@@ -250,18 +250,18 @@ void print_help(char *argv[])
 
 #ifndef _WIN32
 void handler(int sig) {
-  void *array[10];
-  size_t size;
+    void *array[10];
+    size_t size;
 
-  // get void*'s for all entries on the stack
-  size = backtrace(array, 32);
+    // get void*'s for all entries on the stack
+    size = backtrace(array, 32);
 
-  // print out all the frames to stderr
-  ZF_LOGE("IN SIGNAL HANDLER: signal no %d:\n", sig);
-  ZF_LOGE("Stack trace...");
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-  ZF_LOGE("End of stack trace.");
-  exit(1);
+    // print out all the frames to stderr
+    ZF_LOGE("IN SIGNAL HANDLER: signal no %d:\n", sig);
+    ZF_LOGE("Stack trace...");
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
+    ZF_LOGE("End of stack trace.");
+    exit(1);
 }
 
 #include <sys/types.h>
@@ -272,16 +272,14 @@ bool is_already_started()
 {
     // get this process pid
     pid_t pid = getpid();
-
     // compose a bash command that:
     // check if another process with the same name 
     // but with different pid is running
     std::stringstream command;
-    command << "ps -eo pid,comm | grep urpc_xinet_server | grep -v " << pid;
+    command << "ps -eo pid,comm | grep urpc_xinet_serv | grep -v ' " << pid << " '";
     int isRuning = system(command.str().c_str());
     if (isRuning == 0) {
-        std::cout << "Another process (urpc_xinet_server) already running. Press a key to exit!" << std::endl;
-        std::cin.get(); // To avoid console closing
+        std::cout << "Another process (urpc_xinet_server) already running. Exit." << std::endl;
         return true;
     }
     return false;
