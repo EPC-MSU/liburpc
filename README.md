@@ -9,6 +9,12 @@ urpc.ximc.ru из файла с описанием протокола, и liburp
 Библиотека потребует другую библиотеку (xibridge), релиз которой нужно скачать по адресу "https://github.com/EPC-MSU/xibridge/releases".
 Распаковать архив  и положить из папки в соответствии со своей  ОС, допустим, в папку c:/projects/xibridge (путь до библиотеки может быть любой). 
 
+### Клонировать проект
+git clone https://github.com/EPC-MSU/liburpc
+git switch dev-2.0 # или другая ветка
+git submodule update --init --recursive
+git submodule update --recursive
+
 ### Cборка liburpc на ОС linux
  
 Для сборки на ОС linux нужно сделать всего лишь cmake + make, но это принято делать в отдельной папке build, чтобы не замусоривать этот и все зависимые проекты временными файлами:
