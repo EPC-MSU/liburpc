@@ -11,7 +11,8 @@ urpc.ximc.ru из файла с описанием протокола, и liburp
 
 ### Клонировать проект
 git clone https://github.com/EPC-MSU/liburpc
-git switch dev-2.0 # или другая ветка
+cd liburpc
+git switch dev-2.0 # возможно, другая ветка или коммит
 git submodule update --init --recursive
 git submodule update --recursive
 
