@@ -10,7 +10,8 @@ urpc.ximc.ru из файла с описанием протокола, и liburp
 
 ```shell
 git clone https://github.com/EPC-MSU/liburpc
-git switch dev-1.0 # или другая ветка
+cd liburpc
+git switch dev-1.0 # возможно, другая ветка или коммит
 git submodule update --init --recursive
 git submodule update --recursive
 ```
