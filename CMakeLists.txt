@@ -100,6 +100,40 @@ ENDIF()
 
 IF(URPC_ENABLE_XINET)
    #way 1 
+   file(DOWNLOAD
+    https://github.com/EPC-MSU/xibridge/releases/tag/v1.0.5/xibridge-1.0.5.zip
+    ${CMAKE_BINARY_DIR}/vendor/xibridge/xibridge-1.0.5.zip
+    STATUS DOWNLOAD_STATUS
+   )
+   # Separate the returned status code, and error message.
+   list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+   list(GET DOWNLOAD_STATUS 1 ERROR_MESSAGE)
+   # Check if download was successful. 
+   if(${STATUS_CODE} EQUAL 0)
+      message(STATUS "Download completed successfully!")
+   else()
+   # Exit CMake if the download failed, printing the error message.
+     message(FATAL_ERROR "Error occurred during download: ${ERROR_MESSAGE}")
+   endif()
+   
+   execute_process(
+       COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_BINARY_DIR}/vendor/xibridge/xibridge-1.0.5.zip
+       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/vendor/xibridge
+      ) 	  
+   
+   if(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
+      set (XIBRIDGE_PATH ${CMAKE_CURRENT_BINARY_DIR}/vendor/xibridge/macos)
+   elseif(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
+      if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+         # 64 bits
+		 set (XIBRIDGE_PATH ${CMAKE_CURRENT_BINARY_DIR}/vendor/xibridge/win64)
+      else()
+	     # 32 bits
+	     set (XIBRIDGE_PATH ${CMAKE_CURRENT_BINARY_DIR}/vendor/xibridge/win32)
+      endif()		 
+   else()	  	 
+      set (XIBRIDGE_PATH ${CMAKE_CURRENT_BINARY_DIR}/vendor/xibridge/deb64)
+   endif()	  
    find_path(XIBRIDGE_INCLUDE_DIR xibridge.h PATHS ${XIBRIDGE_PATH})
    find_library(XIBRIDGE_LIBRARY NAMES xibridge PATHS  ${XIBRIDGE_PATH} ${XIBRIDGE_PATH}/Debug ${XIBRIDGE_PATH}/Release)
    include(FindPackageHandleStandardArgs)
