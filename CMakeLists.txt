@@ -2,10 +2,6 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 PROJECT(urpc)
 
-OPTION(URPC_ENABLE_SERIAL "Enable serial port devices support" ON)
-OPTION(URPC_ENABLE_XINET "Enable network devices support via bindy/cryptopp" ON)
-OPTION(URPC_ENABLE_UDP "Enable UDP adapter devices support" ON)
-
 IF(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
     # It is required to build a rpath framework
     CMAKE_POLICY(SET CMP0042 NEW)
@@ -35,23 +31,10 @@ if(${CMAKE_VERSION} VERSION_LESS "3.0.2")
 endif()
 
 ADD_LIBRARY(urpc urpc.c uri.c synchronizer.c)
-CONFIGURE_FILE(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/generated/private/config.h)
 target_include_directories(urpc PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated/private)
 IF(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
    ADD_DEFINITIONS(-D_CRT_SECURE_NO_WARNINGS)
 ENDIF()   
-INCLUDE(GenerateExportHeader)
-GENERATE_EXPORT_HEADER(urpc EXPORT_MACRO_NAME URPC_API_EXPORT EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/generated/public/urpc_export.h)
-# make available to all dependants
-target_include_directories(urpc PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated/public)
-# make available to all dev* submodules
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/generated/public)
-
-IF(BUILD_SHARED_LIBS)
-    SET_TARGET_PROPERTIES(urpc PROPERTIES C_VISIBILITY_PRESET hidden)
-    SET_TARGET_PROPERTIES(urpc PROPERTIES CXX_VISIBILITY_PRESET hidden)
-    SET_TARGET_PROPERTIES(urpc PROPERTIES VISIBILITY_INLINES_HIDDEN TRUE)
-ENDIF()
 
 FUNCTION(ADD_SUBDIRECTORY_ZF_LOG)
     SET(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
@@ -88,17 +71,7 @@ ADD_SUBDIRECTORY_TINYCTHREAD()
 target_include_directories(urpc PRIVATE vendor/tinycthread/source)
 TARGET_LINK_LIBRARIES(urpc tinycthread)
 
-IF(URPC_ENABLE_SERIAL)
-    ADD_SUBDIRECTORY(devserial)
-    TARGET_LINK_LIBRARIES(urpc urpc-serial)
-ENDIF()
+ADD_SUBDIRECTORY(devserial)
+TARGET_LINK_LIBRARIES(urpc urpc-serial)
 
-IF(URPC_ENABLE_XINET)
-    ADD_SUBDIRECTORY(devxinet)
-    TARGET_LINK_LIBRARIES(urpc urpc-xinet)
-ENDIF()
 
-IF(URPC_ENABLE_UDP)
-    ADD_SUBDIRECTORY(devudp)
-    TARGET_LINK_LIBRARIES(urpc urpc-udp)
-ENDIF()

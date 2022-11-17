@@ -6,46 +6,17 @@
 
 #include <zf_log.h>
 
-#include "config.h"
 #include "uri.h"
 #include "synchronizer.h"
-#ifdef URPC_ENABLE_SERIAL
-    #include "devserial/devserial.h"
-#endif
-#ifdef URPC_ENABLE_XINET
-    #include "devxinet/devxinet.h"
-#endif
-#ifdef URPC_ENABLE_UDP
-    #include "devudp/devudp.h"
-#endif
-#ifdef URPC_ENABLE_VIRTUAL
-    #include "devvirtual.h"
-#endif
+#include "devserial/devserial.h"
 
 #ifdef _MSC_VER
     #pragma warning( disable : 4311 ) // because we may cast 64-bit handle ptrs to uint32_t to use as pseudo-ids
 #endif
 
-
-#if !defined(URPC_ENABLE_SERIAL) && !defined(URPC_ENABLE_XINET) && !defined(URPC_ENABLE_VIRTUAL) && !defined(URPC_ENABLE_UDP)
-    #error "Define at least one of URPC_ENABLE_SERIAL, URPC_ENABLE_XINET, URPC_ENABLE_VIRTUAL."
-#endif // !defined(URPC_ENABLE_SERIAL) && !defined(URPC_ENABLE_XINET) && !defined(URPC_ENABLE_VIRTUAL)
-
-
 enum urpc_device_type_t
 {
-    #ifdef URPC_ENABLE_SERIAL
     URPC_DEVICE_TYPE_SERIAL,
-    #endif
-    #ifdef URPC_ENABLE_XINET
-    URPC_DEVICE_TYPE_XINET,
-    #endif
-    #ifdef URPC_ENABLE_VIRTUAL
-    URPC_URPC_DEVICE_TYPE_VIRTUAL,
-    #endif
-    #ifdef URPC_ENABLE_UDP
-    URPC_DEVICE_TYPE_UDP,
-    #endif
     URPC_DEVICE_TYPE_UNKNOWN
 };
 
@@ -56,48 +27,16 @@ struct urpc_device_t
     enum urpc_device_type_t type;
     union
     {
-        #ifdef URPC_ENABLE_SERIAL
         struct urpc_device_serial_t *serial;
-        #endif
-        #ifdef URPC_ENABLE_XINET
-        struct urpc_device_xinet_t *xinet;
-        #endif
-        #ifdef URPC_ENABLE_UDP
-        struct urpc_device_udp_t *udp;
-        #endif
-        #ifdef URPC_ENABLE_VIRTUAL
-        struct virtual_device_t virtual;
-        #endif
     } impl;
 };
 
-
 static enum urpc_device_type_t get_device_type_from_uri(const struct urpc_uri_t *parsed_uri)
 {
-    #ifdef URPC_ENABLE_SERIAL
     if (!portable_strcasecmp(parsed_uri->scheme, "com"))
     {
         return URPC_DEVICE_TYPE_SERIAL;
     }
-    #endif
-    #ifdef URPC_ENABLE_XINET
-    if (!portable_strcasecmp(parsed_uri->scheme, "xi-net"))
-    {
-        return URPC_DEVICE_TYPE_XINET;
-    }
-    #endif
-    #ifdef URPC_ENABLE_UDP
-    if (!portable_strcasecmp(parsed_uri->scheme, "udp"))
-    {
-        return URPC_DEVICE_TYPE_UDP;
-    }
-    #endif
-    #ifdef URPC_ENABLE_VIRTUAL
-    if (!portable_strcasecmp(parsed_uri->scheme, "emu"))
-    {
-        return URPC_DEVICE_TYPE_VIRTUAL;
-    }
-    #endif
     return URPC_DEVICE_TYPE_UNKNOWN;
 }
 
@@ -132,7 +71,6 @@ urpc_device_create(
     device->type = get_device_type_from_uri(&parsed_uri);
     switch (device->type)
     {
-            #ifdef URPC_ENABLE_SERIAL
         case URPC_DEVICE_TYPE_SERIAL:
 //            if(strlen(parsed_uri.host) != 0 || strlen(parsed_uri.path) == 0)
 //            {
@@ -145,30 +83,6 @@ urpc_device_create(
                 goto device_impl_create_failed;
             }
             break;
-            #endif
-            #ifdef URPC_ENABLE_XINET
-        case URPC_DEVICE_TYPE_XINET:
-            if ((device->impl.xinet = urpc_device_xinet_create(parsed_uri.host, parsed_uri.path)) == NULL)
-            {
-                ZF_LOGE("failed to create xinet device");
-                goto device_impl_create_failed;
-            }
-            break;
-            #endif
-            #ifdef URPC_ENABLE_UDP
-        case URPC_DEVICE_TYPE_UDP:
-            if ((device->impl.udp = urpc_device_udp_create(parsed_uri.host, parsed_uri.port)) == NULL)
-            {
-                ZF_LOGE("failed to create udp device");
-                goto device_impl_create_failed;
-            }
-            break;
-            #endif
-            #if URPC_ENABLE_VIRTUAL
-        case URPC_DEVICE_TYPE_VIRTUAL:
-            return close_port_virtual(&device->impl.virtual);
-            break;
-            #endif
         default:
             ZF_LOGE("unknown device type");
             goto device_impl_create_failed;
@@ -212,26 +126,9 @@ urpc_result_t urpc_device_send_request(
 
     switch (device->type)
     {
-            #ifdef URPC_ENABLE_SERIAL
         case URPC_DEVICE_TYPE_SERIAL:
             result = urpc_device_serial_send_request(device->impl.serial, cid, request, request_len, response, response_len);
             break;
-            #endif
-            #ifdef URPC_ENABLE_XINET
-        case URPC_DEVICE_TYPE_XINET:
-            result = urpc_device_xinet_send_request(device->impl.xinet, cid, request, request_len, response, response_len);
-            break;
-            #endif
-            #ifdef URPC_ENABLE_UDP
-        case URPC_DEVICE_TYPE_UDP:
-            result = urpc_device_udp_send_request(device->impl.udp, cid, request, request_len, response, response_len);
-            break;
-            #endif
-            #ifdef URPC_ENABLE_VIRTUAL
-        case URPC_DEVICE_TYPE_VIRTUAL:
-            result = close_port_virtual(&device->impl.virtual);
-            break;
-            #endif
         default:
             result = urpc_result_error;
             break;
@@ -267,26 +164,9 @@ urpc_result_t urpc_device_destroy(
     urpc_result_t result;
     switch (device->type)
     {
-            #ifdef URPC_ENABLE_SERIAL
         case URPC_DEVICE_TYPE_SERIAL:
             result = urpc_device_serial_destroy(&device->impl.serial);
             break;
-            #endif
-            #ifdef URPC_ENABLE_XINET
-        case URPC_DEVICE_TYPE_XINET:
-            result = urpc_device_xinet_destroy(&device->impl.xinet);
-            break;
-            #endif
-            #ifdef URPC_ENABLE_UDP
-        case URPC_DEVICE_TYPE_UDP:
-            result = urpc_device_udp_destroy(&device->impl.udp);
-            break;
-            #endif
-            #if URPC_ENABLE_VIRTUAL
-        case URPC_DEVICE_TYPE_VIRTUAL:
-            result = close_port_virtual(&device->impl.virtual);
-            break;
-            #endif
         default:
             result = urpc_result_error;
             break;
@@ -296,8 +176,6 @@ urpc_result_t urpc_device_destroy(
         return result;
     }
     free(device);
-
     *device_ptr = NULL;
-
     return urpc_result_ok;
 }

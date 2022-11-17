@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "urpc_export.h"
-
 struct urpc_device_t;
 typedef struct urpc_device_t *urpc_device_handle_t;
 typedef int urpc_result_t;
@@ -41,12 +39,12 @@ extern "C" {
 *   xi-net://127.0.0.1/7890ABCD
 *   xi-net://remote.ximc.ru/7890ABCD
  */
-URPC_API_EXPORT urpc_device_handle_t
+urpc_device_handle_t
 urpc_device_create(
     const char *uri
 );
 
-URPC_API_EXPORT urpc_result_t
+urpc_result_t
 urpc_device_send_request(
     urpc_device_handle_t device,
     const char cid[URPC_CID_SIZE],
@@ -56,7 +54,7 @@ urpc_device_send_request(
     uint8_t response_len
 );
 
-URPC_API_EXPORT urpc_result_t
+urpc_result_t
 urpc_device_destroy(
     urpc_device_handle_t *device_ptr
 );
