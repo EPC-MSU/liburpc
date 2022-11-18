@@ -11,6 +11,9 @@
 #ifndef _WIN32 
   #include <execinfo.h>
   #include <signal.h>
+  #include <sys/types.h>
+  #include <sys/un.h>
+  #include <unistd.h>
 #else
   //
 #endif
@@ -209,7 +212,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
                     response_packet(conn_id, serial);
             response_packet.send_data();
             ZF_LOGD( "To connection %u close device response packet sent.", conn_id);
-			break;
+            break;
         }
         default: {
             ZF_LOGD( "Unknown packet code." );
@@ -220,7 +223,7 @@ void callback_data(conn_id_t conn_id, std::vector<uint8_t> data) {
 // ========================================================
 
 void callback_disc(conn_id_t conn_id) {
-	// if there is an ordinary case - no connection to process in server structures (it is all alredy done); if there ia an extra case - the connection will be deleted here  
+// if there is an ordinary case - no connection to process in server structures (it is all alredy done); if there ia an extra case - the connection will be deleted here  
     msu.remove_conn_or_remove_urpc_device(conn_id, UINT32_MAX, false);
 }
 
@@ -264,23 +267,33 @@ void handler(int sig) {
     exit(1);
 }
 
-#include <sys/types.h>
-#include <unistd.h>
-#include <sstream>
+#define SOCKET_NAME "SOCKET_TO_BE_USED_AS_NAMED_MUTEX"
+#ifndef UNIX_PATH_MAX                                                           
+  #define UNIX_PATH_MAX (108)                                                   
+#endif
+#define MIN(A,B) A<B?A:B
 
 bool is_already_started()
 {
-    // get this process pid
-    pid_t pid = getpid();
-    // compose a bash command that:
-    // check if another process with the same name 
-    // but with different pid is running
-    std::stringstream command;
-    command << "ps -eo pid,comm | grep urpc_xinet_serv | grep -v ' " << pid << " '";
-    int isRuning = system(command.str().c_str());
-    if (isRuning == 0) {
-        std::cout << "Another process (urpc_xinet_server) already running. Exit." << std::endl;
-        return true;
+    struct sockaddr_un SockAddr;
+    int AddrLen;
+    int Socket = socket (PF_UNIX, SOCK_STREAM, 0);                                    
+    if (Socket == -1) 
+    {                                                           
+        std::cout << "Unable to open communication socket because of " << strerror (errno) << ". Exit." << std::endl;                                                             
+        return true;                                                                  
+    }     
+    else 
+    {                                                                      
+        SockAddr.sun_family = AF_UNIX;                                              
+        memset (&SockAddr.sun_path, 0, UNIX_PATH_MAX);                              
+        memcpy (&SockAddr.sun_path [1], SOCKET_NAME, MIN (strlen (SOCKET_NAME), UNIX_PATH_MAX));
+        AddrLen = sizeof (SockAddr);                                                
+        if (bind (Socket, (struct sockaddr *) &SockAddr, AddrLen)) 
+        {                
+            std::cout<< "Another process (urpc_xinet_server) already running. Exit." << std::endl;                                                              
+            return true;                                                                
+        }
     }
     return false;
 }
@@ -330,14 +343,14 @@ int main(int argc, char *argv[])
     if (is_already_started())
         return 0;
 #ifndef _WIN32
-	signal(SIGSEGV, handler);   // install our handler  
+    signal(SIGSEGV, handler);   // install our handler  
 #endif
     std::cout << "=== uRPC XiNet Server "
               << URPC_XINET_VERSION_MAJOR << "."
               << URPC_XINET_VERSION_MINOR << "."
               << URPC_XINET_VERSION_BUGFIX << " "
               << "===" << std::endl;
-	
+
     bool exit = false;
     if (argc > 1)
     {
