@@ -99,14 +99,13 @@ IF(URPC_ENABLE_UDP)
 ENDIF()
 
 IF(URPC_ENABLE_XINET)
-    #way 1
     if (NOT DEFINED XIBRIDGE_PATH)
     
     
         if (NOT DEFINED XIBRIDGE_VER)
            set(XIBRIDGE_VER "1.0.5")
         endif()
-		message (${XIBRIDGE_VER})
+        message (${XIBRIDGE_VER})
         file(DOWNLOAD
            https://github.com/EPC-MSU/xibridge/releases/download/v${XIBRIDGE_VER}/xibridge-${XIBRIDGE_VER}.zip
            ${CMAKE_BINARY_DIR}/vendor/xibridge/xibridge-${XIBRIDGE_VER}.zip
@@ -129,19 +128,19 @@ IF(URPC_ENABLE_XINET)
          )     
    
          if(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
-            set (XIBRIDGE_PATH ${CMAKE_BINARY_DIR}/vendor/xibridge/macos)
+            set (XIBRIDGE_PATH "${CMAKE_BINARY_DIR}/vendor/xibridge/macos" CACHE INTERNAL "")
          elseif(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
             if (CMAKE_SIZEOF_VOID_P EQUAL 8)
                 # 64 bits
-                set (XIBRIDGE_PATH ${CMAKE_BINARY_DIR}/vendor/xibridge/win64)
+                set (XIBRIDGE_PATH "${CMAKE_BINARY_DIR}/vendor/xibridge/win64"  CACHE INTERNAL "")
             else()
                 # 32 bits
-                set (XIBRIDGE_PATH ${CMAKE_BINARY_DIR}/vendor/xibridge/win32)
+                set (XIBRIDGE_PATH "${CMAKE_BINARY_DIR}/vendor/xibridge/win32" CACHE INTERNAL "")
             endif()      
          else()       
-            set (XIBRIDGE_PATH ${CMAKE_BINARY_DIR}/vendor/xibridge/deb64)
+            set (XIBRIDGE_PATH "${CMAKE_BINARY_DIR}/vendor/xibridge/deb64" CACHE INTERNAL "")
          endif()
-     endif()        
+     endif()
      find_path(XIBRIDGE_INCLUDE_DIR xibridge.h PATHS ${XIBRIDGE_PATH})
      find_library(XIBRIDGE_LIBRARY NAMES xibridge PATHS  ${XIBRIDGE_PATH} ${XIBRIDGE_PATH}/Debug ${XIBRIDGE_PATH}/Release)
      include(FindPackageHandleStandardArgs)
@@ -153,13 +152,6 @@ IF(URPC_ENABLE_XINET)
      include_directories(${XIBRIDGE_INCLUDE_DIR})
      target_link_libraries(urpc ${XIBRIDGE_LIBRARY})
    endif()
-   #way 2
-   #SET(BUILD_XITEST OFF CACHE INTERNAL "")
-   #ADD_SUBDIRECTORY(xibridge)
-   #target_link_libraries(urpc vendor/xibridge)
-   #target_link_directories(urpc PRIVATE vendor/xibridge/client)
-   #way 3
-   #target_link_libraries(urpc xibridge)
 ENDIF()
 
 
