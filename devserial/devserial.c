@@ -6,100 +6,56 @@
 
 #include <zf_log.h>
 
+#include <libserialport.h>
+
 #include "platform.h"
 
 
 struct urpc_device_serial_t
 {
-    urpc_handle_t handle;
+   // urpc_handle_t handle;
+   struct sp_port * handle_port;
 };
 
 static uint8_t errv_cid[URPC_CID_SIZE] = { 'e', 'r', 'r', 'v' };
 static uint8_t errd_cid[URPC_CID_SIZE] = { 'e', 'r', 'r', 'd' };
 
-static urpc_result_t command_port_send(urpc_handle_t handle, const uint8_t *command, size_t command_len)
+static urpc_result_t command_port_send(struct sp_port *handle_port, const uint8_t *command, size_t command_len)
 {
-    urpc_result_t result;
-    size_t amount, k = 0;
-
-    while (k < command_len)
+    enum sp_return result;
+    result = sp_blocking_write(handle_port, command, command_len, URPC_PORT_TIMEOUT);
+    if (result != SP_OK)
     {
-        amount = command_len - k;
-        if (command_len < k)
+        if (result == SP_ERR_FAIL)
         {
-            return urpc_result_error;
+            return urpc_result_nodevice;
         }
-        else if (amount == 0)
+        else
         {
-            break;
+            return sp_flush(handle_port, SP_BUF_OUTPUT) != SP_OK ? urpc_result_nodevice : urpc_result_error;
         }
-
-        result = urpc_serial_port_write(handle, command + k, &amount);
-        if (result != urpc_result_ok)
-        {
-            if (result == urpc_result_nodevice)
-            {
-                return urpc_result_nodevice;
-            }
-            else
-            {
-                return urpc_serial_port_flush(handle) == urpc_result_nodevice ? urpc_result_nodevice : urpc_result_error;
-            }
-        }
-
-        if (amount == 0 && k < command_len)
-        {
-            ZF_LOGD("no more uint8_ts (%d left)... ", (int)(command_len - k));
-            return urpc_serial_port_flush(handle) == urpc_result_nodevice ? urpc_result_nodevice : urpc_result_timeout;
-        }
-
-        k += amount;
     }
 
     return urpc_result_ok;
 }
 
-static int command_port_receive(urpc_handle_t handle, uint8_t *response, size_t response_len)
+static int command_port_receive(struct sp_port *handle_port, uint8_t *response, size_t response_len)
 {
-    urpc_result_t result;
-    size_t amount, k = 0;
-
-    while (k < response_len)
+    enum sp_result result;
+   
+    result = sp_blocking_read(handle_port, response, response_len, URPC_PORT_TIMEOUT);
+    if (result != SP_OK)
     {
-        amount = response_len - k;
-        if (response_len < k)
+        if (result == SP_ERR_FAIL )
         {
-            return urpc_result_error;
+            return urpc_result_nodevice;
         }
-        else if (amount == 0)
+        else
         {
-            break;
+            return sp_flush(handle_port, SP_BUF_INPUT) != SP_OK ? urpc_result_nodevice : urpc_result_error;
         }
-
-        result = urpc_read_serial_port(handle, response + k, &amount);
-        if (result != urpc_result_ok)
-        {
-            if (result == urpc_result_nodevice)
-            {
-                return urpc_result_nodevice;
-            }
-            else
-            {
-                return urpc_serial_port_flush(handle) == urpc_result_nodevice ? urpc_result_nodevice : urpc_result_error;
-            }
-        }
-
-
-//        ZF_LOGD("reading %d/%d ... ", (int)n, (int)amount);
-
-        if (amount == 0 && k < response_len)
-        {
-            ZF_LOGD("no more uint8_ts (%d left)... ", (int)(response_len - k));
-            return urpc_serial_port_flush(handle) == urpc_result_nodevice ? urpc_result_nodevice : urpc_result_timeout;
-        }
-
-        k += amount;
     }
+
     ZF_LOGD_MEM(response, (unsigned int)response_len, "response ");
 
     return urpc_result_ok;
@@ -144,7 +100,7 @@ static uint16_t get_crc(const uint8_t *pbuf, size_t n)
     return crc;
 }
 
-static int send_synchronization_zeroes(urpc_handle_t handle)
+static int send_synchronization_zeroes(struct sp_port *handle_port)
 {
     int received = URPC_ZEROSYNC_BURST_SIZE;
     uint8_t zeroes[URPC_ZEROSYNC_BURST_SIZE];
@@ -153,7 +109,7 @@ static int send_synchronization_zeroes(urpc_handle_t handle)
     ZF_LOGI("zerosync: sending sync zeroes");
 
 
-    if (command_port_send(handle, zeroes, URPC_ZEROSYNC_BURST_SIZE) != urpc_result_ok)
+    if (command_port_send(handle_port, zeroes, URPC_ZEROSYNC_BURST_SIZE) != urpc_result_ok)
     {
         ZF_LOGE("zerosync: command_port_send sync failed");
         return 1;
@@ -161,7 +117,7 @@ static int send_synchronization_zeroes(urpc_handle_t handle)
 
     while (received > 0)
     {
-        if (command_port_receive(handle, zeroes, 1) != urpc_result_ok)
+        if (command_port_receive(handle_port, zeroes, 1) != urpc_result_ok)
         {
             ZF_LOGE("zerosync: command_port_receive can't get uint8_ts");
             return 1;
@@ -177,14 +133,14 @@ static int send_synchronization_zeroes(urpc_handle_t handle)
     return 1;
 }
 
-static int zerosync(urpc_handle_t handle)
+static int zerosync(struct sp_port *handle_port)
 {
     int retry_counter = URPC_ZEROSYNC_RETRY_COUNT;
 
     ZF_LOGI("zerosync: started");
     while (retry_counter > 0)
     {
-        if (send_synchronization_zeroes(handle) == 0)
+        if (send_synchronization_zeroes(handle_port) == 0)
         {
             ZF_LOGI("zerosync: completed");
             return 0;
@@ -195,7 +151,7 @@ static int zerosync(urpc_handle_t handle)
     return 1;
 }
 
-static urpc_result_t receive(urpc_handle_t handle, uint8_t *response, size_t len)
+static urpc_result_t receive(struct sp_port *handle_port, uint8_t *response, size_t len)
 {
     urpc_result_t result;
     int delta_time = 0;
@@ -209,7 +165,7 @@ static urpc_result_t receive(urpc_handle_t handle, uint8_t *response, size_t len
 
     do
     {
-        result = command_port_receive(handle, response, len);
+        result = command_port_receive(handle_port, response, len);
         urpc_get_wallclock(&sec_cur, &msec_cur);
 
         if (result == urpc_result_timeout)
@@ -234,7 +190,7 @@ static urpc_result_t receive(urpc_handle_t handle, uint8_t *response, size_t len
 
     // All retries
     ZF_LOGE("receive: receive finally timed out");
-    if ((result = zerosync(handle)) != 0)
+    if ((result = zerosync(handle_port)) != 0)
     {
         ZF_LOGE("receive: zerosync failed.");
         result = urpc_result_nodevice;
@@ -249,20 +205,27 @@ urpc_device_serial_create(
     const char *path
 )
 {
+    enum sp_result result;
     struct urpc_device_serial_t *device = malloc(sizeof(struct urpc_device_serial_t));
     if (device == NULL)
     {
         goto malloc_failed;
     }
-
-    if (urpc_serial_port_open(path, &device->handle) != urpc_result_ok)
+    result = sp_get_port_by_name(path, & (device -> handle_port));
+    if (result != SP_OK)
     {
+        goto serial_port_open_failed;
+    }
+    if (sp_open(device->handle_port, SP_MODE_READ_WRITE) != SP_OK)
+    {
+        sp_free_port(device->handle_port);
         goto serial_port_open_failed;
     }
 
     return device;
 
 serial_port_open_failed:
+    
     free(device);
 
 malloc_failed:
@@ -280,7 +243,7 @@ urpc_result_t urpc_device_serial_send_request(
 {
     assert(device != NULL);
 
-    urpc_handle_t handle = device->handle;
+    struct sp_port * handle_port = device->handle_port;
     if (request_len != 0 && !request)
     {
         ZF_LOGE("can't read from an empty buffer");
@@ -296,7 +259,7 @@ urpc_result_t urpc_device_serial_send_request(
 
 
         // send command
-        result = command_port_send(handle, (const uint8_t *)request_cid, URPC_CID_SIZE);
+        result = command_port_send(handle_port, (const uint8_t *)request_cid, URPC_CID_SIZE);
         if (result != urpc_result_ok)
         {
             return result;
@@ -304,13 +267,13 @@ urpc_result_t urpc_device_serial_send_request(
 
         if (request_len != 0)
         {
-            result = command_port_send(handle, request, request_len);
+            result = command_port_send(handle_port, request, request_len);
             if (result != urpc_result_ok)
             {
                 return result;
             }
             uint16_t request_crc = get_crc(request, request_len);
-            result = command_port_send(handle, (const uint8_t *)&request_crc, URPC_CRC_SIZE);
+            result = command_port_send(handle_port, (const uint8_t *)&request_crc, URPC_CRC_SIZE);
             if (result != urpc_result_ok)
             {
                 return result;
@@ -326,14 +289,14 @@ urpc_result_t urpc_device_serial_send_request(
         // read first uint8_t until it's non-zero
         do
         {
-            if ((result = receive(handle, response_cid, 1)) != urpc_result_ok)
+            if ((result = receive(handle_port, response_cid, 1)) != urpc_result_ok)
             {
                 return result;
             }
         } while (response_cid[0] == 0);
 
         // read three uint8_ts
-        if ((result = receive(handle, response_cid + 1, 3)) != urpc_result_ok)
+        if ((result = receive(handle_port, response_cid + 1, 3)) != urpc_result_ok)
         {
             return result;
         }
@@ -342,7 +305,7 @@ urpc_result_t urpc_device_serial_send_request(
         if (memcmp(errv_cid, response_cid, URPC_CID_SIZE) == 0)
         {
             ZF_LOGW("Response 'errv' received");
-            urpc_serial_port_flush(handle);
+            sp_flush(handle_port, SP_BUF_BOTH);
             return urpc_result_value_error;
         }
 
@@ -351,8 +314,8 @@ urpc_result_t urpc_device_serial_send_request(
         {
             ZF_LOGW("Response 'errd' received");
             // flood the controller with zeroes
-            zerosync(handle);
-            urpc_serial_port_flush(handle);
+            zerosync(handle_port);
+            sp_flush(handle_port, SP_BUF_BOTH);
             return urpc_result_error;
         }
 
@@ -360,20 +323,20 @@ urpc_result_t urpc_device_serial_send_request(
         if (memcmp(request_cid, response_cid, URPC_CID_SIZE) != 0)
         {
             // flood the controller with zeroes
-            zerosync(handle);
-            urpc_serial_port_flush(handle);
+            zerosync(handle_port);
+            sp_flush(handle_port, SP_BUF_BOTH);
             return urpc_result_error;
         }
 
         if (response_len != 0)
         {
             // receive remaining uint8_ts
-            if ((result = receive(handle, response, response_len)) != urpc_result_ok)
+            if ((result = receive(handle_port, response, response_len)) != urpc_result_ok)
             {
                 return result;
             }
 
-            if ((result = receive(handle, (uint8_t *) &response_crc, URPC_CRC_SIZE)) != urpc_result_ok)
+            if ((result = receive(handle_port, (uint8_t *) &response_crc, URPC_CRC_SIZE)) != urpc_result_ok)
             {
                 return result;
             }
@@ -394,11 +357,13 @@ urpc_result_t urpc_device_serial_destroy(
     struct urpc_device_serial_t *device = *device_ptr;
     assert(device != NULL);
 
-    urpc_result_t result = urpc_serial_port_close(device->handle);
-    if (result != urpc_result_ok)
+    enum sp_return result = sp_close(device->handle_port);
+    if (result != SP_OK)
     {
-        return result;
+       sp_free_port(device->handle_port);
+       return urpc_result_error;
     }
+    sp_free_port(device->handle_port);
     free(device);
 
     *device_ptr = NULL;
