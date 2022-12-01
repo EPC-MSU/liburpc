@@ -24,7 +24,7 @@ static urpc_result_t command_port_send(struct sp_port *handle_port, const uint8_
 {
     enum sp_return result;
     result = sp_blocking_write(handle_port, command, command_len, URPC_PORT_TIMEOUT);
-    if (result != SP_OK)
+    if (result < 0)
     {
         if (result == SP_ERR_FAIL)
         {
@@ -44,7 +44,7 @@ static int command_port_receive(struct sp_port *handle_port, uint8_t *response, 
     enum sp_result result;
    
     result = sp_blocking_read(handle_port, response, response_len, URPC_PORT_TIMEOUT);
-    if (result != SP_OK)
+    if (result < 0)
     {
         if (result == SP_ERR_FAIL )
         {
