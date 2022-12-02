@@ -41,7 +41,7 @@ static urpc_result_t command_port_send(struct sp_port *handle_port, const uint8_
 
 static int command_port_receive(struct sp_port *handle_port, uint8_t *response, size_t response_len)
 {
-    enum sp_result result;
+    enum sp_return result;
    
     result = sp_blocking_read(handle_port, response, response_len, URPC_PORT_TIMEOUT);
     if (result < 0)
@@ -205,7 +205,7 @@ urpc_device_serial_create(
     const char *path
 )
 {
-    enum sp_result result;
+    enum sp_return result;
     struct urpc_device_serial_t *device = malloc(sizeof(struct urpc_device_serial_t));
     if (device == NULL)
     {
