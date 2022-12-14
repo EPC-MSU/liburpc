@@ -57,5 +57,5 @@ IF (MSVC)
                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
                        "${LIBSERIALPORT_PATH}/libserialport.dll"
                        $<TARGET_FILE_DIR:urpc_xinet_server>)
-ENDIF()						
-						   
+ENDIF()
+  
