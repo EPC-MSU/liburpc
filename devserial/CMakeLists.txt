@@ -16,7 +16,7 @@ endif()
 
 if (NOT DEFINED LIBSERIALPORT_PATH)
          if(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
-            set (XIBRIDGE_PATH "${CMAKE_SOURCE_DIR}/../libserialport_release/macos" CACHE INTERNAL "")
+            set (LIBSERIALPORT_PATH "${CMAKE_SOURCE_DIR}/../libserialport_release/macos" CACHE INTERNAL "")
          elseif(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
             if (CMAKE_SIZEOF_VOID_P EQUAL 8)
                 # 64 bits

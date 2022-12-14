@@ -51,3 +51,11 @@ endif()
 ADD_EXECUTABLE(urpc_xinet_server ${SOURCES})
 
 TARGET_LINK_LIBRARIES(urpc_xinet_server zf_log urpc bindy)
+
+IF (MSVC)
+    add_custom_command(TARGET  urpc_xinet_server POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                       "${LIBSERIALPORT_PATH}/libserialport.dll"
+                       $<TARGET_FILE_DIR:urpc_xinet_server>)
+ENDIF()						
+						   
