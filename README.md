@@ -1,3 +1,19 @@
+# libserialport
+
+В проекте используется библиотека libserialport. Нужно взять архив libserialport_release.
+
+## Windows
+
+Нужно положить папку из архива libserialport_release рядом с liburpc.
+
+## Linux
+
+Нужно установить пакет из папки deb64 (архитектура debian x64) или deb_mips (архитектура debian mipsel):
+
+```shell
+sudo apt-get install <путь до libserialport.deb>
+```
+
 # liburpc
 
 liburpc это протоколонезависимая часть библиотеки uRPC
@@ -77,6 +93,7 @@ sudo ln /dev/ttyACM0 /dev/ximc/00000001
 
 ### Cборка/запуск xinet на ОС Windows
 
+Для работы xinet-сервера нужна libserialport.dll соответствующей разрядности(из libserialport_release-архива).
 Для сборки xinet сервера на Windows нужно перейти в папку devxinet и собрать сервер аналогично сборке liburpc, создав отдельную папку build:
 
 Запуск:
