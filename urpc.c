@@ -187,6 +187,27 @@ device_malloc_failed:
     return NULL;
 }
 
+static uint16_t get_crc(const uint8_t *pbuf, size_t n)
+{
+    uint16_t crc, carry_flag, a;
+    size_t i, j;
+    crc = 0xffff;
+    for (i = 0; i < n; i++)
+    {
+        crc = crc ^ pbuf[i];
+        for (j = 0; j < 8; j++)
+        {
+            a = crc;
+            carry_flag = a & 0x0001;
+            crc = crc >> 1;
+            if (carry_flag == 1)
+            {
+                crc = crc ^ 0xA001;
+            }
+        }
+    }
+    return crc;
+}
 // can be called from any thread;
 // calling this function after urpc_device_destroy is undefined behaviour (where 'after' is defined by languages' memory model)
 urpc_result_t urpc_device_send_request(
@@ -209,6 +230,7 @@ urpc_result_t urpc_device_send_request(
     uint8_t *full_req;
     uint8_t *full_data;
     uint32_t  xi_res;
+    uint16_t crc, crc_given;
 #endif
 
     if (urpc_synchronizer_acquire(device->sync) != 0)
@@ -227,13 +249,33 @@ urpc_result_t urpc_device_send_request(
 #ifdef URPC_ENABLE_XINET
         case URPC_DEVICE_TYPE_XINET:
             result = urpc_result_error;
-            full_req = malloc(request_len + URPC_CID_SIZE);
+            uint8_t pver = device->impl.xinet->proto_ver.major;
+            full_req = malloc(pver == 3  && request_len != 0 ? request_len + URPC_CID_SIZE + URPC_CRC_SIZE : request_len + URPC_CID_SIZE);
             memcpy(full_req, cid, URPC_CID_SIZE);
-            if (request_len) memcpy(full_req + URPC_CID_SIZE, request, request_len);
-            full_data = malloc(response_len + sizeof(uint32_t));
-            xi_res = (urpc_result_t)xibridge_device_request_response(device->impl.xinet, full_req, (uint32_t)(request_len+URPC_CID_SIZE), full_data, (uint32_t)(response_len + sizeof(uint32_t)));
+            if (request_len)
+            {
+                memcpy(full_req + URPC_CID_SIZE, request, request_len);
+                if (pver == 3 && request != NULL)
+                {
+                    crc = get_crc(request, request_len);
+                    memcpy(full_req + URPC_CID_SIZE + request_len, (void *)&crc, URPC_CRC_SIZE);
+                }
+            }
+            full_data = malloc(pver == 3 && response_len != 0 ? response_len + URPC_CID_SIZE + URPC_CRC_SIZE : response_len + URPC_CID_SIZE);
+            xi_res = (urpc_result_t)xibridge_device_request_response(device->impl.xinet, full_req, (uint32_t)(pver == 3 && request_len != 0 ? request_len + URPC_CID_SIZE + URPC_CRC_SIZE : request_len + URPC_CID_SIZE), 
+                full_data, (uint32_t)(pver == 3 && response_len != 0 ? response_len + URPC_CID_SIZE + URPC_CRC_SIZE : response_len + URPC_CID_SIZE));
             if (xi_res == 0) result = *(urpc_result_t *)((uint32_t *)(full_data));
-            if (response_len) memcpy(response, full_data + sizeof(uint32_t), response_len);
+            if (response_len)
+            {
+                memcpy(response, full_data + sizeof(uint32_t), response_len);
+                if (pver == 3 && response != NULL)
+                {
+                    crc = get_crc(response, response_len);
+                    crc_given = *(uint16_t *)(response + URPC_CID_SIZE + response_len);
+                    if (crc_given != crc)
+                        result = urpc_result_error;
+                }
+            }
             free(full_data);
             free(full_req);
             break;
