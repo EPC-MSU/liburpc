@@ -267,11 +267,11 @@ urpc_result_t urpc_device_send_request(
             if (xi_res == 0) result = *(urpc_result_t *)((uint32_t *)(full_data));
             if (response_len)
             {
-                memcpy(response, full_data + sizeof(uint32_t), response_len);
+                memcpy(response, full_data + URPC_CID_SIZE, response_len);
                 if (pver == 3 && response != NULL)
                 {
                     crc = get_crc(response, response_len);
-                    crc_given = *(uint16_t *)(response + URPC_CID_SIZE + response_len);
+                    crc_given = *(uint16_t *)(full_data + URPC_CID_SIZE + response_len);
                     if (crc_given != crc)
                         result = urpc_result_error;
                 }
