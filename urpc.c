@@ -208,6 +208,34 @@ static uint16_t get_crc(const uint8_t *pbuf, size_t n)
     }
     return crc;
 }
+
+
+static urpc_result_t translate_xibridge_result(uint32_t result)
+{
+    urpc_result_t ret;
+    switch (result)
+    {
+    case 0:
+        ret = urpc_result_ok;
+        break;
+    case 3:
+    case 7:
+        ret = urpc_result_timeout;
+        break;
+    case 0xfffb:
+        ret = urpc_result_nodevice;
+        break;
+    case 0xfff9:
+        ret = urpc_result_value_error;
+        break;
+    default:
+        ret = urpc_result_error;
+        break;
+    }
+
+}
+
+
 // can be called from any thread;
 // calling this function after urpc_device_destroy is undefined behaviour (where 'after' is defined by languages' memory model)
 urpc_result_t urpc_device_send_request(
@@ -262,10 +290,10 @@ urpc_result_t urpc_device_send_request(
                 }
             }
             full_data = malloc(pver == 3 && response_len != 0 ? response_len + URPC_CID_SIZE + URPC_CRC_SIZE : response_len + URPC_CID_SIZE);
-            xi_res = (urpc_result_t)xibridge_device_request_response(device->impl.xinet, full_req, (uint32_t)(pver == 3 && request_len != 0 ? request_len + URPC_CID_SIZE + URPC_CRC_SIZE : request_len + URPC_CID_SIZE), 
+            xi_res = xibridge_device_request_response(device->impl.xinet, full_req, (uint32_t)(pver == 3 && request_len != 0 ? request_len + URPC_CID_SIZE + URPC_CRC_SIZE : request_len + URPC_CID_SIZE), 
                 full_data, (uint32_t)(pver == 3 && response_len != 0 ? response_len + URPC_CID_SIZE + URPC_CRC_SIZE : response_len + URPC_CID_SIZE));
-            if (xi_res == 0) result = *(urpc_result_t *)((uint32_t *)(full_data));
-            if (response_len)
+            result = translate_xibridge_result(xi_res)
+            if (result == urpc_result_ok && response_len > 0)
             {
                 memcpy(response, full_data + URPC_CID_SIZE, response_len);
                 if (pver == 3 && response != NULL)
