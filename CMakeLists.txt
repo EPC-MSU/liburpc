@@ -103,11 +103,11 @@ IF(URPC_ENABLE_XINET)
     
     
         if (NOT DEFINED XIBRIDGE_VER)
-           set(XIBRIDGE_VER "1.1.0")
+           set(XIBRIDGE_VER "1.1.3")
         endif()
         message (${XIBRIDGE_VER})
         file(DOWNLOAD
-           https://github.com/EPC-MSU/xibridge/releases/download/v${XIBRIDGE_VER}/xibridge-${XIBRIDGE_VER}.zip
+           https://github.com/EPC-MSU/xibridge/releases/download/v${XIBRIDGE_VER}/xibridge.zip
            ${CMAKE_BINARY_DIR}/vendor/xibridge/xibridge-${XIBRIDGE_VER}.zip
            STATUS DOWNLOAD_STATUS
         )
