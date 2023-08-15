@@ -103,7 +103,7 @@ IF(URPC_ENABLE_XINET)
     
     
         if (NOT DEFINED XIBRIDGE_VER)
-           set(XIBRIDGE_VER "1.1.3")
+           set(XIBRIDGE_VER "1.1.6")
         endif()
         message (${XIBRIDGE_VER})
         file(DOWNLOAD
