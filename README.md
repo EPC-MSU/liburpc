@@ -1,10 +1,10 @@
 # libserialport
 
-В проекте используется библиотека libserialport. Нужно взять архив libserialport_release.
+В проекте используется библиотека libserialport.
 
 ## Windows
 
-Нужно положить папку из архива libserialport_release рядом с liburpc.
+libserialport в виде бинарных файлов скачается автоматически при скачивании субмодулей.
 
 ## Linux
 
