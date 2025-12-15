@@ -2,17 +2,9 @@
 
 В проекте используется библиотека libserialport.
 
-## Windows
+На Windows и Linux libserialport в виде бинарных файлов скачается автоматически при скачивании субмодулей.
 
-libserialport в виде бинарных файлов скачается автоматически при скачивании субмодулей.
 
-## Linux
-
-Нужно установить пакет из папки deb64 (архитектура debian x64) или deb_mips (архитектура debian mipsel):
-
-```shell
-sudo apt-get install <путь до libserialport.deb>
-```
 
 # liburpc
 
