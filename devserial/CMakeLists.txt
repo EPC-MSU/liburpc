@@ -20,10 +20,10 @@ if (NOT DEFINED LIBSERIALPORT_PATH)
          elseif(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
             if (CMAKE_SIZEOF_VOID_P EQUAL 8)
                 # 64 bits
-                set (LIBSERIALPORT_PATH "${CMAKE_SOURCE_DIR}/libserialport/prebuilt/win64/release"  CACHE INTERNAL "")
+                set (LIBSERIALPORT_PATH "${CMAKE_SOURCE_DIR}/../libserialport/prebuilt/win64/release"  CACHE INTERNAL "")
             else()
                 # 32 bits
-                set (LIBSERIALPORT_PATH "${CMAKE_SOURCE_DIR}/libserialport/prebuilt/win32/release" CACHE INTERNAL "")
+                set (LIBSERIALPORT_PATH "${CMAKE_SOURCE_DIR}/../libserialport/prebuilt/win32/release" CACHE INTERNAL "")
             endif() 
          elseif (${CMAKE_SYSTEM_PROCESSOR} STREQUAL mips)  		
             set (LIBSERIALPORT_PATH "${CMAKE_SOURCE_DIR}/../libserialport_release/deb_mips" CACHE INTERNAL "")
