@@ -88,7 +88,7 @@ make -j$(nproc)
 
 ```shell
 sudo mkdir /dev/ximc
-sudo ln /dev/ttyACM0 /dev/ximc/00000001
+sudo ln -s /dev/ttyACM0 /dev/ximc/00000001
 ```
 
 ### Cборка/запуск xinet на ОС Windows
