@@ -222,6 +222,28 @@ urpc_device_serial_create(
         goto serial_port_open_failed;
     }
 
+	// Configure port
+	if (sp_set_baudrate(device->handle_port, 115200) != SP_OK)
+	{
+		goto serial_port_open_failed;
+	}
+	if (sp_set_bits(device->handle_port, 8) != SP_OK)
+	{
+		goto serial_port_open_failed;
+	}
+	if (sp_set_parity(device->handle_port, SP_PARITY_NONE) != SP_OK)
+	{
+		goto serial_port_open_failed;
+	}
+	if (sp_set_stopbits(device->handle_port, 2) != SP_OK)
+	{
+		goto serial_port_open_failed;
+	}
+	if (sp_set_flowcontrol(device->handle_port, SP_FLOWCONTROL_NONE) != SP_OK)
+	{
+		goto serial_port_open_failed;
+	}
+
     return device;
 
 serial_port_open_failed:
