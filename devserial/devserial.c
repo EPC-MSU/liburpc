@@ -200,57 +200,70 @@ static urpc_result_t receive(struct sp_port *handle_port, uint8_t *response, siz
 }
 
 
+urpc_result_t urpc_serial_port_open(
+    const char *path,
+    struct urpc_device_serial_t *device
+    )
+{
+    enum sp_return result;
+    result = sp_get_port_by_name(path, &(device->handle_port));
+    if (result != SP_OK)
+    {
+        return urpc_result_error;
+    }
+
+    result = sp_open(device->handle_port, SP_MODE_READ_WRITE); 
+
+    // Configure port
+    if (result == SP_OK)
+    {
+        result = sp_set_baudrate(device->handle_port, 115200);
+	}
+    if (result == SP_OK)
+    {
+        result = sp_set_bits(device->handle_port, 8);
+    }
+    if (result == SP_OK)
+    {
+        result = sp_set_parity(device->handle_port, SP_PARITY_NONE);
+    }
+    if (result == SP_OK)
+    {
+        result = sp_set_stopbits(device->handle_port, 2);
+    }
+    if (result == SP_OK)
+    {
+        result = sp_set_flowcontrol(device->handle_port, SP_FLOWCONTROL_NONE);
+    }
+    if (result == SP_OK)
+    {
+        return urpc_result_ok;
+    }
+    else
+    {
+        sp_free_port(device->handle_port);
+        return urpc_result_error;
+    }
+}
+
 struct urpc_device_serial_t *
 urpc_device_serial_create(
     const char *path
 )
 {
-    enum sp_return result;
     struct urpc_device_serial_t *device = malloc(sizeof(struct urpc_device_serial_t));
     if (device == NULL)
     {
-        goto malloc_failed;
+        return NULL;
     }
-    result = sp_get_port_by_name(path, & (device -> handle_port));
-    if (result != SP_OK)
+    urpc_result_t result = urpc_serial_port_open(path, device);
+    if (result == urpc_result_ok)
     {
-        goto serial_port_open_failed;
-    }
-    if (sp_open(device->handle_port, SP_MODE_READ_WRITE) != SP_OK)
-    {
-        sp_free_port(device->handle_port);
-        goto serial_port_open_failed;
+        return device;
     }
 
-	// Configure port
-	if (sp_set_baudrate(device->handle_port, 115200) != SP_OK)
-	{
-		goto serial_port_open_failed;
-	}
-	if (sp_set_bits(device->handle_port, 8) != SP_OK)
-	{
-		goto serial_port_open_failed;
-	}
-	if (sp_set_parity(device->handle_port, SP_PARITY_NONE) != SP_OK)
-	{
-		goto serial_port_open_failed;
-	}
-	if (sp_set_stopbits(device->handle_port, 2) != SP_OK)
-	{
-		goto serial_port_open_failed;
-	}
-	if (sp_set_flowcontrol(device->handle_port, SP_FLOWCONTROL_NONE) != SP_OK)
-	{
-		goto serial_port_open_failed;
-	}
-
-    return device;
-
-serial_port_open_failed:
-    
+    // device was not properly configured
     free(device);
-
-malloc_failed:
     return NULL;
 }
 
