@@ -209,6 +209,7 @@ urpc_result_t urpc_serial_port_open(
     result = sp_get_port_by_name(path, &(device->handle_port));
     if (result != SP_OK)
     {
+        ZF_LOGE("libserialport: can't get port by name");
         return urpc_result_error;
     }
 
@@ -218,6 +219,10 @@ urpc_result_t urpc_serial_port_open(
     if (result == SP_OK)
     {
         result = sp_set_baudrate(device->handle_port, 115200);
+	}
+    else
+	{
+        ZF_LOGE("libserialport: can't open serial port");
 	}
     if (result == SP_OK)
     {
@@ -241,6 +246,7 @@ urpc_result_t urpc_serial_port_open(
     }
     else
     {
+        ZF_LOGE("libserialport: can't configure serial port");
         sp_free_port(device->handle_port);
         return urpc_result_error;
     }
@@ -254,6 +260,7 @@ urpc_device_serial_create(
     struct urpc_device_serial_t *device = malloc(sizeof(struct urpc_device_serial_t));
     if (device == NULL)
     {
+		ZF_LOGE("can't allocate memory for serial device structure");
         return NULL;
     }
     urpc_result_t result = urpc_serial_port_open(path, device);
